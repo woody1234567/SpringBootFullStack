@@ -1,5 +1,6 @@
 package com.example.expensetracker.repository.impl;
 
+import com.example.expensetracker.aspect.LoggedOperation;
 import com.example.expensetracker.constant.SqlParamNames;
 import com.example.expensetracker.repository.ExpenseRepository;
 import com.example.expensetracker.repository.mapper.ExpenseRowMapper;
@@ -8,7 +9,6 @@ import com.example.expensetracker.repository.model.ExpenseRow;
 import com.example.expensetracker.repository.model.GetExpenseResult;
 import com.example.expensetracker.repository.model.MutationResult;
 import com.example.expensetracker.repository.model.SearchExpensesResult;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.SimpleJdbcCall;
 import org.springframework.stereotype.Repository;
@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-@Slf4j
 @Repository
 public class ExpenseRepositoryImpl implements ExpenseRepository {
 
@@ -55,12 +54,11 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
     }
 
     @Override
+    @LoggedOperation("app_expense.create_expense")
     public CreateExpenseResult createExpense(
             Long userId, LocalDate expenseDate, BigDecimal amount, Integer categoryId,
             String invoiceNumber, String note
     ) {
-        log.info("Calling app_expense.create_expense for user_id={}", userId);
-
         Map<String, Object> params = new HashMap<>();
         params.put(SqlParamNames.USER_ID, userId);
         params.put(SqlParamNames.EXPENSE_DATE, expenseDate);
@@ -73,7 +71,6 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
         Number expenseId = (Number) result.get(SqlParamNames.EXPENSE_ID);
 
         String resultCode = (String) result.get(SqlParamNames.RESULT_CODE);
-        log.info("app_expense.create_expense result_code={}", resultCode);
 
         return new CreateExpenseResult(
                 expenseId == null ? null : expenseId.longValue(),
@@ -82,12 +79,11 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
     }
 
     @Override
+    @LoggedOperation("app_expense.update_expense")
     public MutationResult updateExpense(
             Long expenseId, Long userId, LocalDate expenseDate, BigDecimal amount, Integer categoryId,
             String invoiceNumber, String note
     ) {
-        log.info("Calling app_expense.update_expense for expense_id={} user_id={}", expenseId, userId);
-
         Map<String, Object> params = new HashMap<>();
         params.put(SqlParamNames.EXPENSE_ID, expenseId);
         params.put(SqlParamNames.USER_ID, userId);
@@ -99,27 +95,25 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
 
         Map<String, Object> result = updateExpenseCall.execute(params);
         String resultCode = (String) result.get(SqlParamNames.RESULT_CODE);
-        log.info("app_expense.update_expense result_code={}", resultCode);
 
         return new MutationResult(resultCode, (String) result.get(SqlParamNames.RESULT_MESSAGE));
     }
 
     @Override
+    @LoggedOperation("app_expense.delete_expense")
     public MutationResult deleteExpense(Long expenseId, Long userId) {
-        log.info("Calling app_expense.delete_expense for expense_id={} user_id={}", expenseId, userId);
-
         Map<String, Object> params = Map.of(
                 SqlParamNames.EXPENSE_ID, expenseId,
                 SqlParamNames.USER_ID, userId);
 
         Map<String, Object> result = deleteExpenseCall.execute(params);
         String resultCode = (String) result.get(SqlParamNames.RESULT_CODE);
-        log.info("app_expense.delete_expense result_code={}", resultCode);
 
         return new MutationResult(resultCode, (String) result.get(SqlParamNames.RESULT_MESSAGE));
     }
 
     @Override
+    @LoggedOperation("app_expense.get_expense_detail")
     public GetExpenseResult getExpenseDetail(Long expenseId, Long userId) {
         Map<String, Object> params = Map.of(
                 SqlParamNames.EXPENSE_ID, expenseId,
@@ -136,6 +130,7 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
     }
 
     @Override
+    @LoggedOperation("app_expense.search_expenses")
     public SearchExpensesResult searchExpenses(
             Long userId, LocalDate dateFrom, LocalDate dateTo, Integer categoryId, int page, int pageSize
     ) {

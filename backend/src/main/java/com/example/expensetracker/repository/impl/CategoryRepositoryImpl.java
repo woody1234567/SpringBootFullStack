@@ -1,5 +1,6 @@
 package com.example.expensetracker.repository.impl;
 
+import com.example.expensetracker.aspect.LoggedOperation;
 import com.example.expensetracker.repository.CategoryRepository;
 import com.example.expensetracker.repository.mapper.CategoryRowMapper;
 import com.example.expensetracker.repository.model.CategoryRow;
@@ -21,6 +22,7 @@ public class CategoryRepositoryImpl implements CategoryRepository {
     }
 
     @Override
+    @LoggedOperation("app_expense.v_active_categories")
     public List<CategoryRow> getActiveCategories() {
         return jdbcTemplate.query(SELECT_ACTIVE_CATEGORIES, new CategoryRowMapper());
     }

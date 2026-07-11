@@ -1,12 +1,12 @@
 package com.example.expensetracker.repository.impl;
 
+import com.example.expensetracker.aspect.LoggedOperation;
 import com.example.expensetracker.constant.SqlParamNames;
 import com.example.expensetracker.repository.UserRepository;
 import com.example.expensetracker.repository.mapper.UserRowMapper;
 import com.example.expensetracker.repository.model.CreateUserResult;
 import com.example.expensetracker.repository.model.FindUserResult;
 import com.example.expensetracker.repository.model.UserRow;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.SimpleJdbcCall;
 import org.springframework.stereotype.Repository;
@@ -16,7 +16,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-@Slf4j
 @Repository
 public class UserRepositoryImpl implements UserRepository {
 
@@ -35,9 +34,8 @@ public class UserRepositoryImpl implements UserRepository {
     }
 
     @Override
+    @LoggedOperation("app_user.create_user")
     public CreateUserResult createUser(String email, String passwordHash, String displayName) {
-        log.info("Calling app_user.create_user for email={}", maskEmail(email));
-
         Map<String, Object> params = new HashMap<>();
         params.put(SqlParamNames.EMAIL, email);
         params.put(SqlParamNames.PASSWORD_HASH, passwordHash);
@@ -49,14 +47,12 @@ public class UserRepositoryImpl implements UserRepository {
         String resultMessage = (String) result.get(SqlParamNames.RESULT_MESSAGE);
         Number userId = (Number) result.get(SqlParamNames.USER_ID);
 
-        log.info("app_user.create_user result_code={}", resultCode);
         return new CreateUserResult(userId == null ? null : userId.longValue(), resultCode, resultMessage);
     }
 
     @Override
+    @LoggedOperation("app_user.get_user_by_email")
     public FindUserResult findByEmail(String email) {
-        log.info("Calling app_user.get_user_by_email for email={}", maskEmail(email));
-
         Map<String, Object> result = getUserByEmailCall.execute(Map.of(SqlParamNames.EMAIL, email));
 
         String resultCode = (String) result.get(SqlParamNames.RESULT_CODE);
@@ -67,13 +63,5 @@ public class UserRepositoryImpl implements UserRepository {
         Optional<UserRow> user = (users == null || users.isEmpty()) ? Optional.empty() : Optional.of(users.get(0));
 
         return new FindUserResult(user, resultCode, resultMessage);
-    }
-
-    private static String maskEmail(String email) {
-        if (email == null || !email.contains("@")) {
-            return "***";
-        }
-        int at = email.indexOf('@');
-        return email.charAt(0) + "***" + email.substring(at);
     }
 }

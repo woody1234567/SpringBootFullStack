@@ -40,6 +40,9 @@ SQL Server Tables
   (`{ "success", "message", "data" }` on success; `{ "success": false, "message", "errorCode",
   "errors" }` on failure) via a `@RestControllerAdvice` global exception handler that maps
   business exceptions to HTTP status codes without leaking SQL Server internals.
+- **Centralized AOP logging** – A single Spring AOP aspect (`LoggingAspect`) logs method entry,
+  exit, duration, and exceptions across the Controller, Service, and Repository layers, so no
+  individual class hand-writes entry/exit logging anymore. See [Logging](#logging) below.
 - **API documentation** – springdoc-openapi is wired up; Swagger UI and the OpenAPI JSON are
   exposed only under the `dev`/`local` Spring profiles (see [Security](#security) below).
 
@@ -47,6 +50,7 @@ SQL Server Tables
 
 ```text
 src/main/java/com/example/expensetracker
+├── aspect            # LoggingAspect (cross-cutting entry/exit/exception logging) + @LoggedOperation
 ├── config          # Security, CORS, OpenAPI wiring
 ├── constant        # Result-code and SQL parameter-name constants
 ├── controller       # HTTP endpoints only — no SQL, no business logic
@@ -60,7 +64,7 @@ src/main/java/com/example/expensetracker
 │   └── impl
 ├── security          # JWT provider/filter, authenticated-principal resolution
 ├── service           # Orchestration, security context, DTO translation
-└── util              # CSV parsing helper
+└── util              # CSV parsing helper, SensitiveDataMasker (log redaction)
 
 src/main/resources
 ├── application.yml           # Local config (gitignored — copy from the example below)
@@ -102,6 +106,45 @@ global exception handler maps to HTTP status codes.
 - CORS allowed origins are configurable via `app.cors.allowed-origins` (comma-separated).
 - Passwords are hashed with `BCryptPasswordEncoder`; plaintext passwords, password hashes, and
   full JWTs must never be logged (see logging rules in `.claude/CLAUDE.md`).
+
+## Logging
+
+Method-level logging for the Controller, Service, and Repository layers is centralized in a
+single Spring AOP aspect rather than hand-written per method:
+
+- **`aspect.LoggingAspect`** (`@Aspect`) wraps every public method in `controller`, `service`,
+  and `repository.impl` with a single `@Around` advice. For each call it logs:
+  - `ENTER <label> args=[...]` before the call
+  - `EXIT <label> durationMs=<n> result=<...>` on success
+  - `EXCEPTION <label> durationMs=<n> args=[...] exceptionType=... message=...` on failure, then
+    rethrows the exception unchanged (it never wraps or swallows anything)
+  - Because layers are nested (Controller → Service → Repository), a single request naturally
+    produces a stack of paired ENTER/EXIT lines, one per layer — this is expected, not duplicated
+    logging.
+- **`aspect.@LoggedOperation("app_schema.object_name")`** — annotate a Repository method with the
+  literal SQL Server stored procedure/function/view it calls so the log line shows the real SQL
+  object name (e.g. `app_user.create_user`) instead of the Java method name. Used on all
+  Repository impl methods; Service/Controller methods fall back to `ClassName.methodName`.
+- **`util.SensitiveDataMasker`** redacts arguments and return values before they're logged, so
+  `LoggingAspect` never needs per-call masking code:
+  - Full mask (`***`) for any parameter/field whose name contains `password`, `token`, `jwt`,
+    `secret`, `hash`, `sessionid`, `credential`, or `authorization`.
+  - Partial mask for anything containing `email` (e.g. `j***@example.com`).
+  - Records (all DTOs and repository result types are records) are walked component-by-component
+    recursively, so a sensitive field nested inside a response DTO (e.g. `AuthResponse.token()`)
+    is still masked — the aspect never calls a domain object's own `toString()`.
+  - Collections/lists are summarized as `ClassName[size=N]`, never dumped element-by-element.
+- **Exception log level** — a fixed set of expected business exceptions (`ValidationException`,
+  `ResourceNotFoundException`, `DuplicateResourceException`, `BadCredentialsException`,
+  `UnauthorizedException`, `ForbiddenException`, `BusinessException`) log at `WARN` with no stack
+  trace; everything else (including `DatabaseOperationException` and unexpected exceptions) logs
+  at `ERROR` with a full stack trace.
+- Individual Repository/Service classes no longer hand-write entry/result-code logging — the few
+  remaining manual `log.error(...)` calls in `AuthService` and `ExpenseService` are kept
+  intentionally, because they capture the raw SQL `result_code` value in a branch that throws a
+  generic exception, which the aspect's generic exception log can't reconstruct on its own.
+- No `pom.xml` or `log4j2.xml` changes were needed — `spring-boot-starter-aop` was already a
+  declared dependency, and Spring Boot auto-configures AOP proxying once it's on the classpath.
 
 ## Environment Requirements
 

@@ -34,8 +34,6 @@ public class ExpenseImportService {
     @Transactional
     public ImportResultResponse importExpenses(Long userId, MultipartFile file) {
         List<ParsedExpenseImportRow> rows = csvExpenseParser.parse(file);
-
-        log.info("Importing {} CSV rows for user_id={}", rows.size(), userId);
         ImportBatchResult result = expenseImportRepository.importBatch(userId, file.getOriginalFilename(), rows);
 
         String status = switch (result.resultCode()) {

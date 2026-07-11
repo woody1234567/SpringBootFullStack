@@ -1,5 +1,6 @@
 package com.example.expensetracker.repository.impl;
 
+import com.example.expensetracker.aspect.LoggedOperation;
 import com.example.expensetracker.constant.SqlParamNames;
 import com.example.expensetracker.repository.ExpenseImportRepository;
 import com.example.expensetracker.repository.mapper.ImportRowFailureMapper;
@@ -7,7 +8,6 @@ import com.example.expensetracker.repository.model.ImportBatchResult;
 import com.example.expensetracker.repository.model.ImportRowFailure;
 import com.example.expensetracker.repository.model.ParsedExpenseImportRow;
 import com.microsoft.sqlserver.jdbc.SQLServerDataTable;
-import lombok.extern.slf4j.Slf4j;
 import microsoft.sql.Types;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.SqlOutParameter;
@@ -26,7 +26,6 @@ import java.util.Map;
  * atomic insert in one round trip (see .claude/CLAUDE.md section 9 — database-
  * owned transaction pattern).
  */
-@Slf4j
 @Repository
 public class ExpenseImportRepositoryImpl implements ExpenseImportRepository {
 
@@ -54,9 +53,8 @@ public class ExpenseImportRepositoryImpl implements ExpenseImportRepository {
     }
 
     @Override
+    @LoggedOperation("app_expense.import_expenses_batch")
     public ImportBatchResult importBatch(Long userId, String fileName, List<ParsedExpenseImportRow> rows) {
-        log.info("Calling app_expense.import_expenses_batch for user_id={} rowCount={}", userId, rows.size());
-
         Map<String, Object> params = new HashMap<>();
         params.put(SqlParamNames.USER_ID, userId);
         params.put(SqlParamNames.FILE_NAME, fileName);
@@ -70,8 +68,6 @@ public class ExpenseImportRepositoryImpl implements ExpenseImportRepository {
 
         @SuppressWarnings("unchecked")
         List<ImportRowFailure> failedRows = (List<ImportRowFailure>) result.get("failed_rows");
-
-        log.info("app_expense.import_expenses_batch result_code={}", resultCode);
 
         return new ImportBatchResult(
                 batchId == null ? null : batchId.longValue(),
