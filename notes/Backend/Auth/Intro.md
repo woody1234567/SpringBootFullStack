@@ -20,8 +20,6 @@ JwtAuthenticationFilter (OncePerRequestFilter) → 驗證 JWT → 寫入 Securit
 - `backend/src/main/java/com/example/expensetracker/config/SecurityConfig.java`
 - `backend/src/main/java/com/example/expensetracker/service/AuthService.java`
 - `backend/src/main/java/com/example/expensetracker/controller/AuthController.java`
-- `backend/src/main/resources/application.yml` / `application-example.yml`
-
 ## 1. JWT 簽發 (`JwtTokenProvider`)
 
 - 使用 **jjwt** 函式庫 (`io.jsonwebtoken`)
