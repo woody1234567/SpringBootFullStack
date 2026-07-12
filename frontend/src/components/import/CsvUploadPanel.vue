@@ -1,26 +1,17 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import { Message } from 'view-ui-plus'
 import { downloadTextFile } from '@/utils/downloadFile'
 
 const SAMPLE_CSV_CONTENT = [
   'expense_date,amount,category,invoice_number,note',
   '2026-07-01,150.00,餐飲,INV-0001,午餐',
-  '2026-07-02,899.50,交通,,計程車資',
+  '2026-07-02,899.50,旅費,INV-0002,住宿',
   '2026-07-03,45.00,餐飲,INV-0003,咖啡',
 ].join('\r\n')
 
 const emit = defineEmits<{
   upload: [file: File]
 }>()
-
-const uploading = ref(false)
-
-defineExpose({
-  setUploading: (value: boolean) => {
-    uploading.value = value
-  },
-})
 
 const handleBeforeUpload = (file: File) => {
   if (!file.name.toLowerCase().endsWith('.csv')) {
@@ -40,7 +31,7 @@ const handleDownloadSample = () => {
   <div class="csv-upload-panel">
     <div class="csv-upload-panel__actions">
       <Upload action="" :before-upload="handleBeforeUpload" :show-upload-list="false" accept=".csv">
-        <Button icon="ios-cloud-upload-outline" :loading="uploading">選擇 CSV 檔案上傳</Button>
+        <Button icon="ios-cloud-upload-outline">選擇 CSV 檔案上傳</Button>
       </Upload>
       <Button icon="ios-download-outline" @click="handleDownloadSample">下載範例檔</Button>
     </div>
