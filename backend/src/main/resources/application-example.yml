@@ -6,18 +6,29 @@ server:
 
 spring:
   datasource:
-    url: jdbc:sqlserver://${DB_HOST:localhost}:${DB_PORT:1433};databaseName=${DB_NAME:expense_tracker};encrypt=${DB_ENCRYPT:true};trustServerCertificate=${DB_TRUST_CERT:true}
-    username: ${DB_USER}
-    password: ${DB_PASSWORD}
+    url: jdbc:sqlserver://${DB_HOST}:${DB_PORT:1433};databaseName=${DB_NAME:expense_tracker};encrypt=${DB_ENCRYPT:true};trustServerCertificate=${DB_TRUST_CERT:true}
+    username: ${DB_USER:expense_app}
+    password: ${DB_PASSWORD:Woody880703}
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
   servlet:
     multipart:
       max-file-size: 5MB
       max-request-size: 5MB
 
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    # 依規格書只允許 POST，可開啟此項讓介面更乾淨（非必要）
+    supported-submit-methods: ["post"]
+  packages-to-scan: com.example.expensetracker.controller
+
 app:
   jwt:
-    secret: ${JWT_SECRET}
+    secret: ${JWT_SECRET:a3ba1a0f1ad1330220aa60863483f7120c9c2cbbb47d2a7ba40bf988ddf59156}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+
+
