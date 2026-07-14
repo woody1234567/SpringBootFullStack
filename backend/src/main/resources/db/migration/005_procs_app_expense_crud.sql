@@ -1,248 +1,265 @@
--- app_expense.create_expense: inserts a single expense record owned by @user_id.
-CREATE OR ALTER PROCEDURE app_expense.create_expense
-    @user_id        bigint,
-    @expense_date   date,
-    @amount         decimal(12,2),
-    @category_id    int,
-    @invoice_number nvarchar(20)  = NULL,
-    @note           nvarchar(500) = NULL,
-    @expense_id     bigint OUTPUT,
-    @result_code    nvarchar(50) OUTPUT,
-    @result_message nvarchar(4000) OUTPUT
+-- app_expense.SP_CREATE_EXPENSE: inserts a single expense record owned by p_user_id.
+CREATE OR REPLACE PROCEDURE app_expense.SP_CREATE_EXPENSE (
+    p_user_id        IN  NUMBER,
+    p_expense_date   IN  DATE,
+    p_amount         IN  NUMBER,
+    p_category_id    IN  NUMBER,
+    p_invoice_number IN  VARCHAR2 DEFAULT NULL,
+    p_note           IN  VARCHAR2 DEFAULT NULL,
+    p_expense_id     OUT NUMBER,
+    p_result_code    OUT VARCHAR2,
+    p_result_message OUT VARCHAR2
+)
 AS
+    v_count PLS_INTEGER;
 BEGIN
-    SET NOCOUNT ON;
-    SET XACT_ABORT ON;
+    IF p_amount IS NULL OR p_amount <= 0 THEN
+        p_result_code := 'VALIDATION_ERROR';
+        p_result_message := 'Amount must be greater than 0';
+        RETURN;
+    END IF;
 
-    BEGIN TRY
-        IF @amount IS NULL OR @amount <= 0
-        BEGIN
-            SET @result_code = N'VALIDATION_ERROR';
-            SET @result_message = N'Amount must be greater than 0';
+    IF p_expense_date IS NULL THEN
+        p_result_code := 'VALIDATION_ERROR';
+        p_result_message := 'Expense date is required';
+        RETURN;
+    END IF;
+
+    SELECT COUNT(*) INTO v_count
+    FROM app_expense.TB_CATEGORY
+    WHERE category_id = p_category_id AND is_active = 1;
+
+    IF v_count = 0 THEN
+        p_result_code := 'VALIDATION_ERROR';
+        p_result_message := 'Category not found';
+        RETURN;
+    END IF;
+
+    IF p_invoice_number IS NOT NULL THEN
+        SELECT COUNT(*) INTO v_count
+        FROM app_expense.TB_EXPENSE
+        WHERE user_id = p_user_id AND invoice_number = p_invoice_number;
+
+        IF v_count > 0 THEN
+            p_result_code := 'DUPLICATE';
+            p_result_message := 'Invoice number already recorded';
             RETURN;
-        END;
+        END IF;
+    END IF;
 
-        IF @expense_date IS NULL
-        BEGIN
-            SET @result_code = N'VALIDATION_ERROR';
-            SET @result_message = N'Expense date is required';
-            RETURN;
-        END;
+    INSERT INTO app_expense.TB_EXPENSE (user_id, category_id, expense_date, amount, invoice_number, note)
+    VALUES (p_user_id, p_category_id, p_expense_date, p_amount, p_invoice_number, p_note)
+    RETURNING expense_id INTO p_expense_id;
 
-        IF NOT EXISTS (SELECT 1 FROM app_expense.categories WHERE category_id = @category_id AND is_active = 1)
-        BEGIN
-            SET @result_code = N'VALIDATION_ERROR';
-            SET @result_message = N'Category not found';
-            RETURN;
-        END;
+    p_result_code := 'SUCCESS';
+    p_result_message := 'Expense created successfully';
+EXCEPTION
+    WHEN OTHERS THEN
+        p_result_code := 'SYSTEM_ERROR';
+        p_result_message := 'Unable to complete the database operation';
+        RAISE;
+END SP_CREATE_EXPENSE;
+/
 
-        IF @invoice_number IS NOT NULL AND EXISTS (
-            SELECT 1 FROM app_expense.expenses
-            WHERE user_id = @user_id AND invoice_number = @invoice_number
-        )
-        BEGIN
-            SET @result_code = N'DUPLICATE';
-            SET @result_message = N'Invoice number already recorded';
-            RETURN;
-        END;
-
-        INSERT INTO app_expense.expenses (user_id, category_id, expense_date, amount, invoice_number, note)
-        VALUES (@user_id, @category_id, @expense_date, @amount, @invoice_number, @note);
-
-        SET @expense_id = CONVERT(bigint, SCOPE_IDENTITY());
-        SET @result_code = N'SUCCESS';
-        SET @result_message = N'Expense created successfully';
-    END TRY
-    BEGIN CATCH
-        SET @result_code = N'SYSTEM_ERROR';
-        SET @result_message = N'Unable to complete the database operation';
-        THROW;
-    END CATCH;
-END;
-GO
-
--- app_expense.update_expense: updates an expense, enforcing ownership by @user_id.
-CREATE OR ALTER PROCEDURE app_expense.update_expense
-    @expense_id     bigint,
-    @user_id        bigint,
-    @expense_date   date,
-    @amount         decimal(12,2),
-    @category_id    int,
-    @invoice_number nvarchar(20)  = NULL,
-    @note           nvarchar(500) = NULL,
-    @result_code    nvarchar(50) OUTPUT,
-    @result_message nvarchar(4000) OUTPUT
+-- app_expense.SP_UPDATE_EXPENSE: updates an expense, enforcing ownership by p_user_id.
+CREATE OR REPLACE PROCEDURE app_expense.SP_UPDATE_EXPENSE (
+    p_expense_id     IN  NUMBER,
+    p_user_id        IN  NUMBER,
+    p_expense_date   IN  DATE,
+    p_amount         IN  NUMBER,
+    p_category_id    IN  NUMBER,
+    p_invoice_number IN  VARCHAR2 DEFAULT NULL,
+    p_note           IN  VARCHAR2 DEFAULT NULL,
+    p_result_code    OUT VARCHAR2,
+    p_result_message OUT VARCHAR2
+)
 AS
+    v_count PLS_INTEGER;
 BEGIN
-    SET NOCOUNT ON;
-    SET XACT_ABORT ON;
+    -- Row not found and row-belongs-to-another-user both report NOT_FOUND so a
+    -- caller cannot distinguish "doesn't exist" from "not yours" (avoids ID enumeration).
+    SELECT COUNT(*) INTO v_count
+    FROM app_expense.TB_EXPENSE
+    WHERE expense_id = p_expense_id AND user_id = p_user_id;
 
-    BEGIN TRY
-        -- Row not found and row-belongs-to-another-user both report NOT_FOUND so a
-        -- caller cannot distinguish "doesn't exist" from "not yours" (avoids ID enumeration).
-        IF NOT EXISTS (SELECT 1 FROM app_expense.expenses WHERE expense_id = @expense_id AND user_id = @user_id)
-        BEGIN
-            SET @result_code = N'NOT_FOUND';
-            SET @result_message = N'Expense not found';
+    IF v_count = 0 THEN
+        p_result_code := 'NOT_FOUND';
+        p_result_message := 'Expense not found';
+        RETURN;
+    END IF;
+
+    IF p_amount IS NULL OR p_amount <= 0 THEN
+        p_result_code := 'VALIDATION_ERROR';
+        p_result_message := 'Amount must be greater than 0';
+        RETURN;
+    END IF;
+
+    SELECT COUNT(*) INTO v_count
+    FROM app_expense.TB_CATEGORY
+    WHERE category_id = p_category_id AND is_active = 1;
+
+    IF v_count = 0 THEN
+        p_result_code := 'VALIDATION_ERROR';
+        p_result_message := 'Category not found';
+        RETURN;
+    END IF;
+
+    IF p_invoice_number IS NOT NULL THEN
+        SELECT COUNT(*) INTO v_count
+        FROM app_expense.TB_EXPENSE
+        WHERE user_id = p_user_id AND invoice_number = p_invoice_number AND expense_id <> p_expense_id;
+
+        IF v_count > 0 THEN
+            p_result_code := 'DUPLICATE';
+            p_result_message := 'Invoice number already recorded';
             RETURN;
-        END;
+        END IF;
+    END IF;
 
-        IF @amount IS NULL OR @amount <= 0
-        BEGIN
-            SET @result_code = N'VALIDATION_ERROR';
-            SET @result_message = N'Amount must be greater than 0';
-            RETURN;
-        END;
+    UPDATE app_expense.TB_EXPENSE
+    SET expense_date   = p_expense_date,
+        amount         = p_amount,
+        category_id    = p_category_id,
+        invoice_number = p_invoice_number,
+        note           = p_note,
+        updated_at     = SYS_EXTRACT_UTC(SYSTIMESTAMP)
+    WHERE expense_id = p_expense_id AND user_id = p_user_id;
 
-        IF NOT EXISTS (SELECT 1 FROM app_expense.categories WHERE category_id = @category_id AND is_active = 1)
-        BEGIN
-            SET @result_code = N'VALIDATION_ERROR';
-            SET @result_message = N'Category not found';
-            RETURN;
-        END;
+    p_result_code := 'SUCCESS';
+    p_result_message := 'Expense updated successfully';
+EXCEPTION
+    WHEN OTHERS THEN
+        p_result_code := 'SYSTEM_ERROR';
+        p_result_message := 'Unable to complete the database operation';
+        RAISE;
+END SP_UPDATE_EXPENSE;
+/
 
-        IF @invoice_number IS NOT NULL AND EXISTS (
-            SELECT 1 FROM app_expense.expenses
-            WHERE user_id = @user_id AND invoice_number = @invoice_number AND expense_id <> @expense_id
-        )
-        BEGIN
-            SET @result_code = N'DUPLICATE';
-            SET @result_message = N'Invoice number already recorded';
-            RETURN;
-        END;
-
-        UPDATE app_expense.expenses
-        SET expense_date   = @expense_date,
-            amount         = @amount,
-            category_id    = @category_id,
-            invoice_number = @invoice_number,
-            note           = @note,
-            updated_at     = SYSUTCDATETIME()
-        WHERE expense_id = @expense_id AND user_id = @user_id;
-
-        SET @result_code = N'SUCCESS';
-        SET @result_message = N'Expense updated successfully';
-    END TRY
-    BEGIN CATCH
-        SET @result_code = N'SYSTEM_ERROR';
-        SET @result_message = N'Unable to complete the database operation';
-        THROW;
-    END CATCH;
-END;
-GO
-
--- app_expense.delete_expense: deletes an expense, enforcing ownership by @user_id.
-CREATE OR ALTER PROCEDURE app_expense.delete_expense
-    @expense_id     bigint,
-    @user_id        bigint,
-    @result_code    nvarchar(50) OUTPUT,
-    @result_message nvarchar(4000) OUTPUT
+-- app_expense.SP_DELETE_EXPENSE: deletes an expense, enforcing ownership by p_user_id.
+CREATE OR REPLACE PROCEDURE app_expense.SP_DELETE_EXPENSE (
+    p_expense_id     IN  NUMBER,
+    p_user_id        IN  NUMBER,
+    p_result_code    OUT VARCHAR2,
+    p_result_message OUT VARCHAR2
+)
 AS
+    v_count PLS_INTEGER;
 BEGIN
-    SET NOCOUNT ON;
-    SET XACT_ABORT ON;
+    SELECT COUNT(*) INTO v_count
+    FROM app_expense.TB_EXPENSE
+    WHERE expense_id = p_expense_id AND user_id = p_user_id;
 
-    BEGIN TRY
-        IF NOT EXISTS (SELECT 1 FROM app_expense.expenses WHERE expense_id = @expense_id AND user_id = @user_id)
-        BEGIN
-            SET @result_code = N'NOT_FOUND';
-            SET @result_message = N'Expense not found';
-            RETURN;
-        END;
+    IF v_count = 0 THEN
+        p_result_code := 'NOT_FOUND';
+        p_result_message := 'Expense not found';
+        RETURN;
+    END IF;
 
-        DELETE FROM app_expense.expenses WHERE expense_id = @expense_id AND user_id = @user_id;
+    DELETE FROM app_expense.TB_EXPENSE
+    WHERE expense_id = p_expense_id AND user_id = p_user_id;
 
-        SET @result_code = N'SUCCESS';
-        SET @result_message = N'Expense deleted successfully';
-    END TRY
-    BEGIN CATCH
-        SET @result_code = N'SYSTEM_ERROR';
-        SET @result_message = N'Unable to complete the database operation';
-        THROW;
-    END CATCH;
-END;
-GO
+    p_result_code := 'SUCCESS';
+    p_result_message := 'Expense deleted successfully';
+EXCEPTION
+    WHEN OTHERS THEN
+        p_result_code := 'SYSTEM_ERROR';
+        p_result_message := 'Unable to complete the database operation';
+        RAISE;
+END SP_DELETE_EXPENSE;
+/
 
--- app_expense.get_expense_detail: fetches a single expense, enforcing ownership by @user_id.
-CREATE OR ALTER PROCEDURE app_expense.get_expense_detail
-    @expense_id     bigint,
-    @user_id        bigint,
-    @result_code    nvarchar(50) OUTPUT,
-    @result_message nvarchar(4000) OUTPUT
+-- app_expense.SP_GET_EXPENSE_DETAIL: fetches a single expense, enforcing ownership by p_user_id.
+CREATE OR REPLACE PROCEDURE app_expense.SP_GET_EXPENSE_DETAIL (
+    p_expense_id     IN  NUMBER,
+    p_user_id        IN  NUMBER,
+    p_result_code    OUT VARCHAR2,
+    p_result_message OUT VARCHAR2,
+    p_expense_cursor OUT SYS_REFCURSOR
+)
 AS
+    v_count PLS_INTEGER;
 BEGIN
-    SET NOCOUNT ON;
+    SELECT COUNT(*) INTO v_count
+    FROM app_expense.TB_EXPENSE
+    WHERE expense_id = p_expense_id AND user_id = p_user_id;
 
-    BEGIN TRY
-        IF NOT EXISTS (SELECT 1 FROM app_expense.expenses WHERE expense_id = @expense_id AND user_id = @user_id)
-        BEGIN
-            SET @result_code = N'NOT_FOUND';
-            SET @result_message = N'Expense not found';
-            RETURN;
-        END;
+    IF v_count = 0 THEN
+        p_result_code := 'NOT_FOUND';
+        p_result_message := 'Expense not found';
+        OPEN p_expense_cursor FOR
+            SELECT e.expense_id, e.expense_date, e.amount, e.category_id, c.name AS category_name,
+                   e.invoice_number, e.note, e.created_at, e.updated_at
+            FROM app_expense.TB_EXPENSE e
+            JOIN app_expense.TB_CATEGORY c ON c.category_id = e.category_id
+            WHERE 1 = 0;
+        RETURN;
+    END IF;
 
+    OPEN p_expense_cursor FOR
         SELECT e.expense_id, e.expense_date, e.amount, e.category_id, c.name AS category_name,
                e.invoice_number, e.note, e.created_at, e.updated_at
-        FROM app_expense.expenses e
-        JOIN app_expense.categories c ON c.category_id = e.category_id
-        WHERE e.expense_id = @expense_id AND e.user_id = @user_id;
+        FROM app_expense.TB_EXPENSE e
+        JOIN app_expense.TB_CATEGORY c ON c.category_id = e.category_id
+        WHERE e.expense_id = p_expense_id AND e.user_id = p_user_id;
 
-        SET @result_code = N'SUCCESS';
-        SET @result_message = N'Expense found';
-    END TRY
-    BEGIN CATCH
-        SET @result_code = N'SYSTEM_ERROR';
-        SET @result_message = N'Unable to complete the database operation';
-        THROW;
-    END CATCH;
-END;
-GO
+    p_result_code := 'SUCCESS';
+    p_result_message := 'Expense found';
+EXCEPTION
+    WHEN OTHERS THEN
+        p_result_code := 'SYSTEM_ERROR';
+        p_result_message := 'Unable to complete the database operation';
+        RAISE;
+END SP_GET_EXPENSE_DETAIL;
+/
 
--- app_expense.search_expenses: paginated, filterable listing scoped to @user_id.
-CREATE OR ALTER PROCEDURE app_expense.search_expenses
-    @user_id        bigint,
-    @date_from      date = NULL,
-    @date_to        date = NULL,
-    @category_id    int  = NULL,
-    @page           int  = 1,
-    @page_size      int  = 20,
-    @total_count    int OUTPUT,
-    @result_code    nvarchar(50) OUTPUT,
-    @result_message nvarchar(4000) OUTPUT
+-- app_expense.SP_SEARCH_EXPENSE: paginated, filterable listing scoped to p_user_id.
+CREATE OR REPLACE PROCEDURE app_expense.SP_SEARCH_EXPENSE (
+    p_user_id        IN  NUMBER,
+    p_date_from      IN  DATE DEFAULT NULL,
+    p_date_to        IN  DATE DEFAULT NULL,
+    p_category_id    IN  NUMBER DEFAULT NULL,
+    p_page           IN  NUMBER DEFAULT 1,
+    p_page_size      IN  NUMBER DEFAULT 20,
+    p_total_count    OUT NUMBER,
+    p_result_code    OUT VARCHAR2,
+    p_result_message OUT VARCHAR2,
+    p_expense_cursor OUT SYS_REFCURSOR
+)
 AS
+    v_page      NUMBER;
+    v_page_size NUMBER;
 BEGIN
-    SET NOCOUNT ON;
+    v_page := CASE WHEN p_page IS NULL OR p_page < 1 THEN 1 ELSE p_page END;
+    v_page_size := CASE WHEN p_page_size IS NULL OR p_page_size < 1 THEN 20 ELSE p_page_size END;
+    IF v_page_size > 100 THEN
+        v_page_size := 100; -- clamp so a client cannot request unbounded pages
+    END IF;
 
-    BEGIN TRY
-        IF @page IS NULL OR @page < 1 SET @page = 1;
-        IF @page_size IS NULL OR @page_size < 1 SET @page_size = 20;
-        IF @page_size > 100 SET @page_size = 100; -- clamp so a client cannot request unbounded pages
+    SELECT COUNT(*) INTO p_total_count
+    FROM app_expense.TB_EXPENSE e
+    WHERE e.user_id = p_user_id
+      AND (p_date_from IS NULL OR e.expense_date >= p_date_from)
+      AND (p_date_to IS NULL OR e.expense_date <= p_date_to)
+      AND (p_category_id IS NULL OR e.category_id = p_category_id);
 
-        SELECT @total_count = COUNT(*)
-        FROM app_expense.expenses e
-        WHERE e.user_id = @user_id
-          AND (@date_from IS NULL OR e.expense_date >= @date_from)
-          AND (@date_to IS NULL OR e.expense_date <= @date_to)
-          AND (@category_id IS NULL OR e.category_id = @category_id);
-
+    OPEN p_expense_cursor FOR
         SELECT e.expense_id, e.expense_date, e.amount, e.category_id, c.name AS category_name,
                e.invoice_number, e.note, e.created_at, e.updated_at
-        FROM app_expense.expenses e
-        JOIN app_expense.categories c ON c.category_id = e.category_id
-        WHERE e.user_id = @user_id
-          AND (@date_from IS NULL OR e.expense_date >= @date_from)
-          AND (@date_to IS NULL OR e.expense_date <= @date_to)
-          AND (@category_id IS NULL OR e.category_id = @category_id)
+        FROM app_expense.TB_EXPENSE e
+        JOIN app_expense.TB_CATEGORY c ON c.category_id = e.category_id
+        WHERE e.user_id = p_user_id
+          AND (p_date_from IS NULL OR e.expense_date >= p_date_from)
+          AND (p_date_to IS NULL OR e.expense_date <= p_date_to)
+          AND (p_category_id IS NULL OR e.category_id = p_category_id)
         ORDER BY e.expense_date DESC, e.expense_id DESC
-        OFFSET (@page - 1) * @page_size ROWS FETCH NEXT @page_size ROWS ONLY;
+        OFFSET (v_page - 1) * v_page_size ROWS FETCH NEXT v_page_size ROWS ONLY;
 
-        SET @result_code = N'SUCCESS';
-        SET @result_message = N'Search completed successfully';
-    END TRY
-    BEGIN CATCH
-        SET @result_code = N'SYSTEM_ERROR';
-        SET @result_message = N'Unable to complete the database operation';
-        THROW;
-    END CATCH;
-END;
-GO
+    p_result_code := 'SUCCESS';
+    p_result_message := 'Search completed successfully';
+EXCEPTION
+    WHEN OTHERS THEN
+        p_result_code := 'SYSTEM_ERROR';
+        p_result_message := 'Unable to complete the database operation';
+        RAISE;
+END SP_SEARCH_EXPENSE;
+/

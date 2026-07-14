@@ -70,27 +70,27 @@ src/main/resources
 ├── application.yml           # Local config (gitignored — copy from the example below)
 ├── application-example.yml   # Template; copy to application.yml and fill in real values
 ├── log4j2.xml
-└── db/migration/             # Numbered SQL Server DDL/stored-procedure scripts (see below)
+└── db/migration/             # Numbered Oracle DDL/stored-procedure scripts (see below)
 ```
 
 ## Database Objects
 
-SQL Server schemas group related objects, applied in order from `src/main/resources/db/migration/`:
+Oracle schemas (users) group related objects, applied in order from `src/main/resources/db/migration/`:
 
 | File | Purpose |
 | --- | --- |
-| `001_schema_app_user.sql` | `app_user` schema and `users` table |
-| `002_schema_app_expense.sql` | `app_expense` schema, `categories`, `expenses`, `import_batches` tables |
-| `003_types_app_expense.sql` | `app_expense.expense_import_row_type` table type (TVP for batch import) |
-| `004_procs_app_user.sql` | `app_user.create_user` and related user procedures |
-| `005_procs_app_expense_crud.sql` | `app_expense.create_expense`, `update_expense`, `delete_expense`, `get_expense`, `search_expenses` |
-| `006_view_active_categories.sql` | `app_expense.v_active_categories` view |
-| `007_proc_import_expenses_batch.sql` | `app_expense.import_expenses_batch` — atomic CSV bulk import |
-| `008_fix_expenses_invoice_null_unique.sql` | Filtered unique index fix so multiple expenses with no invoice number are allowed per user |
+| `000_setup_schemas.sql` | Creates the `app_user` and `app_expense` schema-only accounts (run as DBA) |
+| `001_schema_app_user.sql` | `app_user.TB_USER` table |
+| `002_schema_app_expense.sql` | `TB_CATEGORY`, `TB_EXPENSE`, `TB_IMPORT_BATCH` tables (incl. function-based unique index so multiple no-invoice expenses are allowed per user) |
+| `003_types_app_expense.sql` | `TO_EXPENSE_IMPORT_ROW`/`TT_EXPENSE_IMPORT_ROW` collection types and `TB_TMP_IMPORT_FAILED_ROW` GTT for batch import |
+| `004_procs_app_user.sql` | `app_user.SP_CREATE_USER`, `SP_GET_USER_BY_EMAIL` |
+| `005_procs_app_expense_crud.sql` | `app_expense.SP_CREATE_EXPENSE`, `SP_UPDATE_EXPENSE`, `SP_DELETE_EXPENSE`, `SP_GET_EXPENSE_DETAIL`, `SP_SEARCH_EXPENSE` |
+| `006_view_active_categories.sql` | `app_expense.VW_ACTIVE_CATEGORY` view |
+| `007_proc_import_expenses_batch.sql` | `app_expense.SP_IMPORT_EXPENSE_BATCH` — atomic CSV bulk import |
 
 These scripts are **not** run automatically (no Flyway/Liquibase dependency is wired in) — apply
-them manually and in numeric order against your SQL Server database before starting the app,
-e.g. with `sqlcmd` or SQL Server Management Studio.
+them manually and in numeric order against your Oracle database before starting the app,
+e.g. with SQL*Plus or SQLcl.
 
 Stored procedures follow a consistent result convention: business outcomes are reported via
 `@result_code` / `@result_message` output parameters (`SUCCESS`, `VALIDATION_ERROR`, `NOT_FOUND`,

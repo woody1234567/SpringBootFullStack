@@ -1,75 +1,83 @@
--- app_user.create_user: registers a new user account.
-CREATE OR ALTER PROCEDURE app_user.create_user
-    @email          nvarchar(320),
-    @password_hash  nvarchar(255),
-    @display_name   nvarchar(100) = NULL,
-    @user_id        bigint OUTPUT,
-    @result_code    nvarchar(50) OUTPUT,
-    @result_message nvarchar(4000) OUTPUT
+-- app_user.SP_CREATE_USER: registers a new user account.
+CREATE OR REPLACE PROCEDURE app_user.SP_CREATE_USER (
+    p_email          IN  VARCHAR2,
+    p_password_hash  IN  VARCHAR2,
+    p_display_name   IN  VARCHAR2 DEFAULT NULL,
+    p_user_id        OUT NUMBER,
+    p_result_code    OUT VARCHAR2,
+    p_result_message OUT VARCHAR2
+)
 AS
+    v_count PLS_INTEGER;
 BEGIN
-    SET NOCOUNT ON;
-    SET XACT_ABORT ON;
+    -- In Oracle the empty string is NULL, so IS NULL also rejects '' inputs.
+    IF p_email IS NULL OR TRIM(p_email) IS NULL OR p_password_hash IS NULL THEN
+        p_result_code := 'VALIDATION_ERROR';
+        p_result_message := 'Email and password are required';
+        RETURN;
+    END IF;
 
-    BEGIN TRY
-        IF @email IS NULL OR LEN(LTRIM(RTRIM(@email))) = 0
-           OR @password_hash IS NULL OR LEN(@password_hash) = 0
-        BEGIN
-            SET @result_code = N'VALIDATION_ERROR';
-            SET @result_message = N'Email and password are required';
-            RETURN;
-        END;
+    SELECT COUNT(*) INTO v_count
+    FROM app_user.TB_USER
+    WHERE email = p_email;
 
-        IF EXISTS (SELECT 1 FROM app_user.users WHERE email = @email)
-        BEGIN
-            SET @result_code = N'DUPLICATE';
-            SET @result_message = N'Email already exists';
-            RETURN;
-        END;
+    IF v_count > 0 THEN
+        p_result_code := 'DUPLICATE';
+        p_result_message := 'Email already exists';
+        RETURN;
+    END IF;
 
-        INSERT INTO app_user.users (email, password_hash, display_name)
-        VALUES (@email, @password_hash, @display_name);
+    INSERT INTO app_user.TB_USER (email, password_hash, display_name)
+    VALUES (p_email, p_password_hash, p_display_name)
+    RETURNING user_id INTO p_user_id;
 
-        SET @user_id = CONVERT(bigint, SCOPE_IDENTITY());
-        SET @result_code = N'SUCCESS';
-        SET @result_message = N'User created successfully';
-    END TRY
-    BEGIN CATCH
-        SET @result_code = N'SYSTEM_ERROR';
-        SET @result_message = N'Unable to complete the database operation';
-        THROW;
-    END CATCH;
-END;
-GO
+    p_result_code := 'SUCCESS';
+    p_result_message := 'User created successfully';
+EXCEPTION
+    WHEN OTHERS THEN
+        p_result_code := 'SYSTEM_ERROR';
+        p_result_message := 'Unable to complete the database operation';
+        RAISE;
+END SP_CREATE_USER;
+/
 
--- app_user.get_user_by_email: looks up an account (including password hash) for login verification.
-CREATE OR ALTER PROCEDURE app_user.get_user_by_email
-    @email          nvarchar(320),
-    @result_code    nvarchar(50) OUTPUT,
-    @result_message nvarchar(4000) OUTPUT
+-- app_user.SP_GET_USER_BY_EMAIL: looks up an account (including password hash) for login verification.
+CREATE OR REPLACE PROCEDURE app_user.SP_GET_USER_BY_EMAIL (
+    p_email          IN  VARCHAR2,
+    p_result_code    OUT VARCHAR2,
+    p_result_message OUT VARCHAR2,
+    p_user_cursor    OUT SYS_REFCURSOR
+)
 AS
+    v_count PLS_INTEGER;
 BEGIN
-    SET NOCOUNT ON;
+    SELECT COUNT(*) INTO v_count
+    FROM app_user.TB_USER
+    WHERE email = p_email;
 
-    BEGIN TRY
-        IF NOT EXISTS (SELECT 1 FROM app_user.users WHERE email = @email)
-        BEGIN
-            SET @result_code = N'NOT_FOUND';
-            SET @result_message = N'User not found';
-            RETURN;
-        END;
+    IF v_count = 0 THEN
+        p_result_code := 'NOT_FOUND';
+        p_result_message := 'User not found';
+        -- Always hand back an opened (empty) cursor so the caller never fetches
+        -- from an unopened ref cursor.
+        OPEN p_user_cursor FOR
+            SELECT user_id, email, password_hash, display_name, is_active
+            FROM app_user.TB_USER
+            WHERE 1 = 0;
+        RETURN;
+    END IF;
 
+    OPEN p_user_cursor FOR
         SELECT user_id, email, password_hash, display_name, is_active
-        FROM app_user.users
-        WHERE email = @email;
+        FROM app_user.TB_USER
+        WHERE email = p_email;
 
-        SET @result_code = N'SUCCESS';
-        SET @result_message = N'User found';
-    END TRY
-    BEGIN CATCH
-        SET @result_code = N'SYSTEM_ERROR';
-        SET @result_message = N'Unable to complete the database operation';
-        THROW;
-    END CATCH;
-END;
-GO
+    p_result_code := 'SUCCESS';
+    p_result_message := 'User found';
+EXCEPTION
+    WHEN OTHERS THEN
+        p_result_code := 'SYSTEM_ERROR';
+        p_result_message := 'Unable to complete the database operation';
+        RAISE;
+END SP_GET_USER_BY_EMAIL;
+/

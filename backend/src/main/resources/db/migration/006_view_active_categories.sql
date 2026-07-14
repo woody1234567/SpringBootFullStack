@@ -1,7 +1,6 @@
 -- Reusable query logic for populating the category dropdown / validating category ids.
-CREATE OR ALTER VIEW app_expense.v_active_categories
+CREATE OR REPLACE VIEW app_expense.VW_ACTIVE_CATEGORY
 AS
     SELECT category_id, name
-    FROM app_expense.categories
+    FROM app_expense.TB_CATEGORY
     WHERE is_active = 1;
-GO

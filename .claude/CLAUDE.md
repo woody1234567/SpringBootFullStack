@@ -15,8 +15,8 @@ This project follows a database-centric architecture.
 The primary implementation order is:
 
 1. Analyze the business requirement.
-2. Design or modify the SQL Server database objects.
-3. Implement business logic in T-SQL Stored Procedures, Functions, Views, or Triggers when justified.
+2. Design or modify the Oracle database objects.
+3. Implement business logic in PL/SQL Packages, Stored Procedures, Functions, Views, or Triggers when justified.
 4. Implement the Spring Boot Repository integration.
 5. Implement the Spring Boot Service and REST API.
 6. Test and confirm the backend API contract.
@@ -43,12 +43,12 @@ Service Layer
         ↓
 Repository Layer
         ↓
-SQL Server Schema / Stored Procedure / Function / View
+Oracle Schema / Package / Procedure / Function / View
         ↓
-SQL Server Tables
+Oracle Tables
 ```
 
-Business rules should be implemented primarily in Microsoft SQL Server.
+Business rules should be implemented primarily in Oracle Database.
 
 The responsibilities of each layer must remain clear.
 
@@ -80,30 +80,30 @@ The responsibilities of each layer must remain clear.
 * Jakarta APIs
 * Lombok
 * Log4j2
-* Microsoft JDBC Driver for SQL Server (`com.microsoft.sqlserver:mssql-jdbc`)
+* Oracle JDBC Driver (`com.oracle.database.jdbc:ojdbc11`)
 
 ## 3.3 Database
 
-* Microsoft SQL Server
-* T-SQL
+* Oracle Database
+* PL/SQL
 * Database Schema
+* Package (specification and body)
 * Stored Procedure
 * Scalar Function
-* Inline Table-Valued Function
-* Multi-Statement Table-Valued Function only when justified
+* Table Function, pipelined only when justified
 * Table
 * View
-* `IDENTITY` or `SEQUENCE`
+* `IDENTITY` column or `SEQUENCE`
 * Constraints and Indexes
-* User-defined table types and Table-Valued Parameters when necessary
+* Object types and nested table (collection) types when necessary
 
 ---
 
 # 4. Database-Centric Business Logic
 
-Business logic must be implemented primarily in Microsoft SQL Server.
+Business logic must be implemented primarily in Oracle Database.
 
-Use SQL Server database objects for:
+Use Oracle database objects for:
 
 * Business validation
 * Business calculations
@@ -119,35 +119,46 @@ Use SQL Server database objects for:
 * Data transformation
 * Transactional data operations
 
-Preferred SQL Server organization:
+Preferred Oracle organization:
 
 ```text
 Schema: app_user
-├── Stored Procedure: app_user.create_user
-├── Stored Procedure: app_user.update_user
-├── Stored Procedure: app_user.verify_email
-├── Stored Procedure: app_user.reset_password
-├── Inline TVF: app_user.get_user_detail
-└── Scalar Function: app_user.email_exists
+└── Package: PG_USER
+    ├── Procedure: SP_CREATE_USER
+    ├── Procedure: SP_UPDATE_USER
+    ├── Procedure: SP_VERIFY_EMAIL
+    ├── Procedure: SP_RESET_PASSWORD
+    ├── Procedure: SP_GET_USER_DETAIL   (returns a SYS_REFCURSOR OUT parameter)
+    └── Function:  FN_EMAIL_EXISTS
 ```
 
-Use SQL Server schemas to group related objects. SQL Server does not support Oracle-style Packages, package specifications, package bodies, or private package members.
+Use Oracle schemas as module boundaries (for example `app_user`, `app_expense`), and use Packages to group the procedures and functions of each module. Oracle Packages support a specification, a body, and private package members; prefer Packages over loose standalone procedures.
 
 Prefer schema-qualified object names such as:
 
 ```sql
-app_user.create_user
-app_order.create_order
-security.check_permission
+app_user.PG_USER.SP_CREATE_USER
+app_order.PG_ORDER.SP_CREATE_ORDER
+security.PG_SECURITY.FN_CHECK_PERMISSION
 ```
 
 Use Stored Procedures for commands, multi-step workflows, and operations requiring output parameters or transaction control.
 
-Prefer Views or inline table-valued functions for reusable query logic. Use scalar functions carefully because row-by-row scalar function execution may reduce performance in large queries.
+Prefer Views or table functions for reusable query logic. Use scalar functions carefully because row-by-row SQL-to-PL/SQL context switching may reduce performance in large queries.
 
-The Java backend should not duplicate business rules already implemented in SQL Server.
+The Java backend should not duplicate business rules already implemented in Oracle.
 
-Do not copy T-SQL business validation into the Java Service layer unless it is required for HTTP request validation, security protection, or early input rejection.
+Do not copy PL/SQL business validation into the Java Service layer unless it is required for HTTP request validation, security protection, or early input rejection.
+
+## Naming Convention
+
+All Oracle database object names must follow the project skill `oracle-naming-convention` (`.claude/skills/oracle-naming-convention/`):
+
+* UPPER_SNAKE_CASE, singular nouns, names <= 60 characters.
+* Mandatory type prefixes: `TB_` table, `VW_` view, `IX_` index, `PK_` primary key, `UK_` unique key, `FK_` foreign key, `SP_` procedure, `FN_` function, `PG_` package, `SQ_` sequence, `TO_` object type, `TT_` table type, `MV_` materialized view, `JB_` job, `TR_` trigger, `DR_` directory.
+* Constraint and index names align with the owning table (`TB_USER` → `PK_USER`, `UK_USER_1`, `IX_USER_1`).
+
+Never invent new prefixes, never omit prefixes, and never mix naming styles.
 
 ---
 
@@ -170,7 +181,7 @@ Controllers must not contain:
 * JdbcTemplate calls
 * SimpleJdbcCall calls
 * Business calculations
-* SQL Server-specific parameter handling
+* Oracle-specific parameter handling
 * Complex permission logic
 * Transactional database workflows
 
@@ -198,13 +209,13 @@ It is responsible for:
 * Translating database errors into application exceptions
 * Managing API-level workflows
 
-The Service layer should not duplicate SQL Server business logic.
+The Service layer should not duplicate Oracle business logic.
 
 Use `@Transactional` on Service methods when multiple Repository calls must participate in the same Java-managed transaction.
 
 Do not add `@Transactional` automatically to every method.
 
-For a single SQL Server Stored Procedure that already controls the complete database operation, evaluate whether Spring transaction management is necessary before adding it.
+For a single Oracle Stored Procedure that already controls the complete database operation, evaluate whether Spring transaction management is necessary before adding it.
 
 Example package:
 
@@ -226,13 +237,13 @@ Use:
 
 The Repository layer may:
 
-* Call SQL Server Stored Procedures
-* Call SQL Server Functions
+* Call Oracle Package procedures and standalone Stored Procedures
+* Call Oracle Functions
 * Execute SQL queries
 * Map query results
-* Register SQL Server input and output parameters
+* Register Oracle input and output parameters, including `SYS_REFCURSOR` output parameters
 * Map result sets to Java objects
-* Convert SQL Server database results into repository result objects
+* Convert Oracle database results into repository result objects
 * Translate low-level database exceptions when appropriate
 
 The Repository layer must not contain business logic.
@@ -268,16 +279,17 @@ repository
 
 ---
 
-# 6. SQL Server Stored Procedure and Function Integration
+# 6. Oracle Stored Procedure and Function Integration
 
-Use `SimpleJdbcCall` for SQL Server Stored Procedures when it fits the existing project style.
+Use `SimpleJdbcCall` for Oracle Stored Procedures when it fits the existing project style.
 
-Example Stored Procedure call:
+For a procedure inside a Package, declare the package name with `withCatalogName` — this is the standard Spring JDBC convention for Oracle Packages:
 
 ```java
 SimpleJdbcCall createUserCall = new SimpleJdbcCall(jdbcTemplate)
-        .withSchemaName("app_user")
-        .withProcedureName("create_user");
+        .withSchemaName("APP_USER")
+        .withCatalogName("PG_USER")
+        .withProcedureName("SP_CREATE_USER");
 ```
 
 When JDBC metadata lookup is unreliable or causes startup or execution overhead, explicitly declare parameters.
@@ -286,47 +298,55 @@ Example:
 
 ```java
 SimpleJdbcCall call = new SimpleJdbcCall(jdbcTemplate)
-        .withSchemaName("app_user")
-        .withProcedureName("create_user")
+        .withSchemaName("APP_USER")
+        .withCatalogName("PG_USER")
+        .withProcedureName("SP_CREATE_USER")
         .withoutProcedureColumnMetaDataAccess()
         .declareParameters(
-                new SqlParameter("email", Types.NVARCHAR),
-                new SqlParameter("password_hash", Types.NVARCHAR),
-                new SqlOutParameter("user_id", Types.BIGINT),
-                new SqlOutParameter("result_code", Types.NVARCHAR),
-                new SqlOutParameter("result_message", Types.NVARCHAR)
+                new SqlParameter("p_email", Types.VARCHAR),
+                new SqlParameter("p_password_hash", Types.VARCHAR),
+                new SqlOutParameter("p_user_id", Types.NUMERIC),
+                new SqlOutParameter("p_result_code", Types.VARCHAR),
+                new SqlOutParameter("p_result_message", Types.VARCHAR)
         );
 ```
 
-SQL Server parameter names are written with `@` in T-SQL, but Spring JDBC map keys are normally declared without `@`. Keep this convention consistent throughout the project.
+PL/SQL parameter names have no `@` prefix. This project uses the `p_` prefix for procedure and function parameters, and Spring JDBC map keys must match the declared PL/SQL parameter names exactly (for example `p_email`). Keep this convention consistent throughout the project.
 
-For a Stored Procedure that returns rows using a normal `SELECT`, map the first result set with `returningResultSet`:
+Oracle returns ordinary result sets through a `SYS_REFCURSOR` output parameter. Map the cursor with `SqlOutParameter` and `OracleTypes.CURSOR`:
 
 ```java
 SimpleJdbcCall getUserCall = new SimpleJdbcCall(jdbcTemplate)
-        .withSchemaName("app_user")
-        .withProcedureName("get_user_detail")
-        .returningResultSet("users", new UserRowMapper());
+        .withSchemaName("APP_USER")
+        .withCatalogName("PG_USER")
+        .withProcedureName("SP_GET_USER_DETAIL")
+        .withoutProcedureColumnMetaDataAccess()
+        .declareParameters(
+                new SqlParameter("p_user_id", Types.NUMERIC),
+                new SqlOutParameter("p_users", OracleTypes.CURSOR, new UserRowMapper())
+        );
 ```
 
-SQL Server does not require an Oracle-style output cursor parameter for ordinary result sets.
+Do not rely on implicit result sets (`DBMS_SQL.RETURN_RESULT`) unless the project explicitly documents that pattern; prefer an explicit `SYS_REFCURSOR` OUT parameter.
 
-Call scalar functions with `JdbcTemplate` or `NamedParameterJdbcTemplate` using `SELECT`:
+Call scalar functions with `JdbcTemplate` or `NamedParameterJdbcTemplate` using `SELECT ... FROM dual`:
 
 ```java
 Boolean exists = jdbcTemplate.queryForObject(
-        "SELECT app_user.email_exists(?)",
+        "SELECT app_user.PG_USER.FN_EMAIL_EXISTS(?) FROM dual",
         Boolean.class,
         email
 );
 ```
 
-Call table-valued functions with a normal `SELECT`:
+A function called from SQL cannot return a PL/SQL `BOOLEAN`. Boolean-style functions must return `NUMBER(1)` with values `0` and `1`, matching the project's existing boolean column convention.
+
+Call table functions with `SELECT * FROM TABLE(...)`:
 
 ```java
 List<UserRow> users = namedParameterJdbcTemplate.query(
-        "SELECT * FROM app_user.search_users(:keyword)",
-        Map.of("keyword", keyword),
+        "SELECT * FROM TABLE(app_user.PG_USER.FN_SEARCH_USERS(:p_keyword))",
+        Map.of("p_keyword", keyword),
         userRowMapper
 );
 ```
@@ -334,32 +354,32 @@ List<UserRow> users = namedParameterJdbcTemplate.query(
 Use named constants for parameter names when the same parameters are reused.
 
 ```java
-private static final String EMAIL = "email";
-private static final String RESULT_CODE = "result_code";
+private static final String P_EMAIL = "p_email";
+private static final String P_RESULT_CODE = "p_result_code";
 ```
 
-Do not scatter raw SQL Server parameter names across multiple classes.
+Do not scatter raw Oracle parameter names across multiple classes.
 
 ---
 
-# 7. SQL Server Result Convention
+# 7. Oracle Result Convention
 
-SQL Server Stored Procedures should return predictable result information.
+Oracle Stored Procedures should return predictable result information.
 
 Recommended output parameters:
 
 ```text
-@result_code       nvarchar(50) OUTPUT
-@result_message    nvarchar(4000) OUTPUT
+p_result_code       OUT VARCHAR2(50)
+p_result_message    OUT VARCHAR2(4000)
 ```
 
 For object creation operations, additionally return:
 
 ```text
-@created_id        bigint OUTPUT
+p_created_id        OUT NUMBER
 ```
 
-For query operations, prefer returning a normal result set with `SELECT`. Do not create a cursor output parameter merely to imitate Oracle behavior.
+For query operations, prefer a `SYS_REFCURSOR` output parameter opened with a normal `SELECT`. For reusable pure-query logic, prefer a View or a table function that the Repository can query directly.
 
 Recommended semantic convention:
 
@@ -376,64 +396,82 @@ Alternatively, use a documented numeric code convention if the existing project 
 
 Do not mix unrelated result code styles within the same project.
 
-Use the Stored Procedure integer return value only when the project has a clearly documented convention. Do not confuse SQL Server `RETURN` values with output parameters or query result sets.
+Do not use a function `RETURN` value to carry business result codes when output parameters are the documented convention. Keep result codes, output parameters, and cursor result sets clearly separated.
 
-The Repository or Service layer must map SQL Server result codes into appropriate Java exceptions and HTTP responses.
+The Repository or Service layer must map Oracle result codes into appropriate Java exceptions and HTTP responses.
 
 ---
 
-# 8. SQL Server Exception Handling
+# 8. Oracle Exception Handling
 
-SQL Server Stored Procedures must handle expected business conditions explicitly and use `TRY...CATCH` for unexpected database errors.
+Oracle Stored Procedures must handle expected business conditions explicitly and use an `EXCEPTION` block for unexpected database errors.
 
 Example:
 
 ```sql
-CREATE OR ALTER PROCEDURE app_user.create_user
-    @email nvarchar(320),
-    @password_hash nvarchar(255),
-    @user_id bigint OUTPUT,
-    @result_code nvarchar(50) OUTPUT,
-    @result_message nvarchar(4000) OUTPUT
-AS
-BEGIN
-    SET NOCOUNT ON;
-    SET XACT_ABORT ON;
+CREATE OR REPLACE PACKAGE app_user.PG_USER AS
 
-    BEGIN TRY
-        IF EXISTS (SELECT 1 FROM app_user.users WHERE email = @email)
-        BEGIN
-            SET @result_code = N'DUPLICATE';
-            SET @result_message = N'Email already exists';
+    PROCEDURE SP_CREATE_USER (
+        p_email          IN  VARCHAR2,
+        p_password_hash  IN  VARCHAR2,
+        p_user_id        OUT NUMBER,
+        p_result_code    OUT VARCHAR2,
+        p_result_message OUT VARCHAR2
+    );
+
+END PG_USER;
+/
+
+CREATE OR REPLACE PACKAGE BODY app_user.PG_USER AS
+
+    PROCEDURE SP_CREATE_USER (
+        p_email          IN  VARCHAR2,
+        p_password_hash  IN  VARCHAR2,
+        p_user_id        OUT NUMBER,
+        p_result_code    OUT VARCHAR2,
+        p_result_message OUT VARCHAR2
+    ) IS
+        v_count PLS_INTEGER;
+    BEGIN
+        SELECT COUNT(*) INTO v_count
+        FROM app_user.TB_USER
+        WHERE email = p_email;
+
+        IF v_count > 0 THEN
+            p_result_code := 'DUPLICATE';
+            p_result_message := 'Email already exists';
             RETURN;
-        END;
+        END IF;
 
-        INSERT INTO app_user.users (email, password_hash)
-        VALUES (@email, @password_hash);
+        INSERT INTO app_user.TB_USER (email, password_hash)
+        VALUES (p_email, p_password_hash)
+        RETURNING user_id INTO p_user_id;
 
-        SET @user_id = CONVERT(bigint, SCOPE_IDENTITY());
-        SET @result_code = N'SUCCESS';
-        SET @result_message = N'User created successfully';
-    END TRY
-    BEGIN CATCH
-        SET @result_code = N'SYSTEM_ERROR';
-        SET @result_message = N'Unable to complete the database operation';
-        THROW;
-    END CATCH;
-END;
+        p_result_code := 'SUCCESS';
+        p_result_message := 'User created successfully';
+    EXCEPTION
+        WHEN DUP_VAL_ON_INDEX THEN
+            p_result_code := 'DUPLICATE';
+            p_result_message := 'Email already exists';
+        WHEN OTHERS THEN
+            p_result_code := 'SYSTEM_ERROR';
+            p_result_message := 'Unable to complete the database operation';
+            RAISE;
+    END SP_CREATE_USER;
+
+END PG_USER;
+/
 ```
 
-For duplicate key violations, SQL Server error numbers `2601` and `2627` may be handled when the operation requires a specific duplicate response. Prefer enforcing uniqueness with a unique constraint or index rather than relying only on a preliminary existence check.
+For duplicate key violations, handle `DUP_VAL_ON_INDEX` (ORA-00001) when the operation requires a specific duplicate response. Prefer enforcing uniqueness with a unique constraint or index rather than relying only on a preliminary existence check.
 
-Use these SQL Server functions inside `CATCH` blocks when detailed server-side logging is required:
+Use these Oracle functions inside `EXCEPTION` blocks when detailed server-side logging is required:
 
 ```text
-ERROR_NUMBER()
-ERROR_MESSAGE()
-ERROR_PROCEDURE()
-ERROR_LINE()
-ERROR_STATE()
-ERROR_SEVERITY()
+SQLCODE
+SQLERRM
+DBMS_UTILITY.FORMAT_ERROR_STACK
+DBMS_UTILITY.FORMAT_ERROR_BACKTRACE
 ```
 
 Do not expose sensitive database details, schema names, SQL statements, stack traces, password hashes, or internal implementation information through API responses.
@@ -453,7 +491,7 @@ Use this when one Stored Procedure performs the complete database workflow and i
 Example:
 
 ```text
-app_order.create_order
+app_order.PG_ORDER.SP_CREATE_ORDER
 ```
 
 The Stored Procedure may:
@@ -464,39 +502,33 @@ The Stored Procedure may:
 * Update inventory
 * Create audit records
 
-Recommended T-SQL pattern:
+Recommended PL/SQL pattern:
 
 ```sql
-SET XACT_ABORT ON;
-
-BEGIN TRY
-    BEGIN TRANSACTION;
-
+BEGIN
     -- Complete business workflow.
 
-    COMMIT TRANSACTION;
-END TRY
-BEGIN CATCH
-    IF XACT_STATE() <> 0
-        ROLLBACK TRANSACTION;
-
-    THROW;
-END CATCH;
+    COMMIT;
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        RAISE;
+END;
 ```
 
 ## Spring-owned transaction
 
 Use this when one Service method coordinates multiple Repository operations, or when transaction ownership belongs to the application layer.
 
-In this mode, avoid unconditional `COMMIT` or `ROLLBACK` statements inside called Stored Procedures. Let the JDBC connection and Spring transaction manager control the outer transaction.
+In this mode, do not put `COMMIT` or `ROLLBACK` statements inside called Stored Procedures. Let the JDBC connection and Spring transaction manager control the outer transaction.
 
-A Stored Procedure that may run inside an existing transaction must not blindly roll back work it does not own. When a procedure needs nested-safe behavior, inspect `@@TRANCOUNT`, use a savepoint when appropriate, and document the strategy.
+Oracle has no nested transactions. A Stored Procedure that may run inside an existing transaction must not blindly roll back work it does not own. When a procedure needs nested-safe behavior, declare a `SAVEPOINT`, roll back to that savepoint on failure, and document the strategy.
 
 Use `@Transactional` only where an application-level transaction boundary is genuinely required.
 
 Avoid ambiguous transaction ownership.
 
-SQL Server has no direct equivalent of Oracle `PRAGMA AUTONOMOUS_TRANSACTION`. Independent audit persistence normally requires a separate connection, asynchronous logging mechanism, or another explicitly isolated transaction design.
+Oracle supports `PRAGMA AUTONOMOUS_TRANSACTION` for independent persistence such as audit logging that must survive a rollback of the main transaction. An autonomous block must issue its own `COMMIT` or `ROLLBACK`. Use it sparingly, only for genuinely independent writes, and document every autonomous transaction explicitly.
 
 ---
 
@@ -543,8 +575,8 @@ dto/response/UserResponse.java
 
 Do not expose:
 
-* SQL Server parameter maps
-* Raw raw JDBC result-set structures
+* Oracle parameter maps
+* Raw JDBC result-set structures
 * Database row objects
 * Password hashes
 * Security tokens not intended for clients
@@ -616,7 +648,7 @@ Log:
 
 * Operation start when useful
 * Important business identifiers
-* SQL Server Stored Procedure or Function name
+* Oracle Package, Stored Procedure, or Function name
 * Result code
 * Execution failure
 * Unexpected exception
@@ -636,7 +668,7 @@ Do not log:
 Example:
 
 ```java
-log.info("Calling PKG_USER.CREATE_USER for email={}", maskedEmail);
+log.info("Calling PG_USER.SP_CREATE_USER for email={}", maskedEmail);
 ```
 
 Use Log4j2 as the logging implementation.
@@ -699,7 +731,7 @@ Error response:
 }
 ```
 
-Do not return raw SQL Server exceptions or SQL error messages to the frontend.
+Do not return raw Oracle exceptions or `ORA-` error messages to the frontend.
 
 Keep response formats consistent across all controllers.
 
@@ -734,10 +766,10 @@ Service
     ↓
 Repository
     ↓
-SQL Server Stored Procedure
+Oracle Stored Procedure
 ```
 
-SQL Server may handle:
+Oracle may handle:
 
 * User lookup
 * Account status
@@ -783,7 +815,7 @@ The backend is responsible for:
 * Hashing tokens before database storage when appropriate
 * Sending email
 * Validating API requests
-* Calling the related SQL Server Stored Procedure
+* Calling the related Oracle Stored Procedure
 * Returning a safe response
 
 Do not reveal whether an email account exists during password reset unless the project requirement explicitly permits it.
@@ -1214,7 +1246,7 @@ const rules: FormRules = {
 }
 ```
 
-Frontend validation improves user experience, but it does not replace backend validation or SQL Server business validation.
+Frontend validation improves user experience, but it does not replace backend validation or Oracle business validation.
 
 ---
 
@@ -1370,19 +1402,20 @@ Identify:
 * Security requirements
 * Email or notification requirements
 
-## Phase 2: SQL Server Design
+## Phase 2: Oracle Design
 
 Define:
 
 * Tables or table changes
 * Indexes
 * Constraints
-* SEQUENCE or IDENTITYs
+* `SEQUENCE` or `IDENTITY` columns
 * Views
+* Package specifications
 * Stored Procedure signatures
 * Stored Procedure implementations
 * Procedure inputs
-* Procedure outputs
+* Procedure outputs, including `SYS_REFCURSOR` parameters
 * Function return values
 * Result set structures
 * Result codes
@@ -1395,7 +1428,7 @@ Implement:
 
 * Repository method
 * SimpleJdbcCall configuration
-* SQL Server parameter mapping
+* Oracle parameter mapping
 * Result set mapping
 * Service orchestration
 * Security checks
@@ -1416,7 +1449,7 @@ Confirm:
 * Authentication behavior
 * Authorization behavior
 * Validation behavior
-* SQL Server result code mapping
+* Oracle result code mapping
 * Error response
 * API documentation
 
@@ -1448,7 +1481,7 @@ Verify:
 * Forbidden request
 * Record not found
 * Duplicate data
-* SQL Server exception
+* Oracle exception
 * Network error
 * Repeated submission
 * Expired authentication
@@ -1464,7 +1497,7 @@ For backend implementation, consider:
 * Integration tests for Repository calls
 * API tests for Controllers
 * Security tests
-* SQL Server Stored Procedure tests
+* Oracle Stored Procedure and PL/SQL tests
 * Transaction rollback tests
 * Validation tests
 
@@ -1488,11 +1521,11 @@ Before implementing a feature:
 
 1. Inspect the relevant files.
 2. Identify the existing coding conventions.
-3. Identify the related SQL Server objects.
+3. Identify the related Oracle objects.
 4. Determine whether similar functionality already exists.
 5. Explain the implementation plan.
 6. List the files and database objects to create or modify.
-7. Implement the SQL Server business logic first.
+7. Implement the Oracle business logic first.
 8. Implement the Spring Boot backend.
 9. Verify the API contract.
 10. Implement the Vue TypeScript frontend.
@@ -1515,18 +1548,18 @@ Briefly describe the requested behavior and relevant assumptions.
 
 ## 2. Implementation Plan
 
-Explain the SQL Server, backend, and frontend changes.
+Explain the Oracle, backend, and frontend changes.
 
 ## 3. Files and Database Objects
 
-List files and SQL Server objects to create or modify.
+List files and Oracle objects to create or modify.
 
-## 4. SQL Server Implementation
+## 4. Oracle Implementation
 
 Provide:
 
 * DDL when required
-* Stored Procedure signatures
+* Package and Stored Procedure signatures
 * Stored Procedure implementations
 * Procedure or Function implementation
 * Result codes
@@ -1603,7 +1636,7 @@ Follow these rules:
 * Do not expose sensitive information.
 * Do not bypass validation.
 * Do not bypass Spring Security.
-* Do not duplicate SQL Server business logic in Java.
+* Do not duplicate Oracle business logic in Java.
 * Do not place database logic in Controllers.
 * Do not place UI logic in API modules.
 * Do not use `any` to suppress TypeScript errors.
@@ -1618,7 +1651,7 @@ Follow these rules:
 The most important rules of this project are:
 
 ```text
-Microsoft SQL Server:
+Oracle Database:
 Owns business rules, calculations, validations, and data workflows.
 
 Spring Boot:
@@ -1626,12 +1659,12 @@ Provides REST APIs, security, application orchestration, validation,
 transaction boundaries, email integration, and database integration.
 
 Repository:
-Calls SQL Server Stored Procedures through JdbcTemplate or SimpleJdbcCall,
+Calls Oracle Package procedures through JdbcTemplate or SimpleJdbcCall,
 and queries Views or Functions through JdbcTemplate or NamedParameterJdbcTemplate.
 
 Vue 3 + TypeScript:
 Implements the user interface based on the finalized backend API contract.
 
 Development Order:
-SQL Server → Spring Boot Backend → API Verification → Vue TypeScript Frontend.
+Oracle → Spring Boot Backend → API Verification → Vue TypeScript Frontend.
 ```
