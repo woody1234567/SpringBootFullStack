@@ -24,8 +24,8 @@ public class ExpenseImportService {
     private final ExpenseImportRepository expenseImportRepository;
 
     /**
-     * The whole-batch atomicity guarantee is already owned by SQL Server —
-     * app_expense.import_expenses_batch validates every row and either inserts
+     * The whole-batch atomicity guarantee is already owned by Oracle —
+     * app_expense.SP_IMPORT_EXPENSE_BATCH validates every row and either inserts
      * all of them or none, in a single self-contained transaction. {@code
      * @Transactional} here wraps exactly one repository call (not several) and
      * is kept per explicit product requirement / as a connection-consistency
@@ -40,7 +40,7 @@ public class ExpenseImportService {
             case ResultCode.SUCCESS -> "SUCCESS";
             case ResultCode.VALIDATION_ERROR -> "FAILED";
             default -> {
-                log.error("app_expense.import_expenses_batch returned result_code={}", result.resultCode());
+                log.error("app_expense.SP_IMPORT_EXPENSE_BATCH returned result_code={}", result.resultCode());
                 throw new IllegalStateException("Unable to complete the import operation");
             }
         };

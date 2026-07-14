@@ -9,11 +9,15 @@ import com.example.expensetracker.repository.model.ExpenseRow;
 import com.example.expensetracker.repository.model.GetExpenseResult;
 import com.example.expensetracker.repository.model.MutationResult;
 import com.example.expensetracker.repository.model.SearchExpensesResult;
+import oracle.jdbc.OracleTypes;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.SqlOutParameter;
+import org.springframework.jdbc.core.SqlParameter;
 import org.springframework.jdbc.core.simple.SimpleJdbcCall;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.sql.Types;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
@@ -31,30 +35,80 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
 
     public ExpenseRepositoryImpl(JdbcTemplate jdbcTemplate) {
         this.createExpenseCall = new SimpleJdbcCall(jdbcTemplate)
-                .withSchemaName("app_expense")
-                .withProcedureName("create_expense");
+                .withSchemaName("APP_EXPENSE")
+                .withProcedureName("SP_CREATE_EXPENSE")
+                .withoutProcedureColumnMetaDataAccess()
+                .declareParameters(
+                        new SqlParameter(SqlParamNames.USER_ID, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.EXPENSE_DATE, Types.DATE),
+                        new SqlParameter(SqlParamNames.AMOUNT, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.CATEGORY_ID, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.INVOICE_NUMBER, Types.VARCHAR),
+                        new SqlParameter(SqlParamNames.NOTE, Types.VARCHAR),
+                        new SqlOutParameter(SqlParamNames.EXPENSE_ID, Types.NUMERIC),
+                        new SqlOutParameter(SqlParamNames.RESULT_CODE, Types.VARCHAR),
+                        new SqlOutParameter(SqlParamNames.RESULT_MESSAGE, Types.VARCHAR)
+                );
 
         this.updateExpenseCall = new SimpleJdbcCall(jdbcTemplate)
-                .withSchemaName("app_expense")
-                .withProcedureName("update_expense");
+                .withSchemaName("APP_EXPENSE")
+                .withProcedureName("SP_UPDATE_EXPENSE")
+                .withoutProcedureColumnMetaDataAccess()
+                .declareParameters(
+                        new SqlParameter(SqlParamNames.EXPENSE_ID, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.USER_ID, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.EXPENSE_DATE, Types.DATE),
+                        new SqlParameter(SqlParamNames.AMOUNT, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.CATEGORY_ID, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.INVOICE_NUMBER, Types.VARCHAR),
+                        new SqlParameter(SqlParamNames.NOTE, Types.VARCHAR),
+                        new SqlOutParameter(SqlParamNames.RESULT_CODE, Types.VARCHAR),
+                        new SqlOutParameter(SqlParamNames.RESULT_MESSAGE, Types.VARCHAR)
+                );
 
         this.deleteExpenseCall = new SimpleJdbcCall(jdbcTemplate)
-                .withSchemaName("app_expense")
-                .withProcedureName("delete_expense");
+                .withSchemaName("APP_EXPENSE")
+                .withProcedureName("SP_DELETE_EXPENSE")
+                .withoutProcedureColumnMetaDataAccess()
+                .declareParameters(
+                        new SqlParameter(SqlParamNames.EXPENSE_ID, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.USER_ID, Types.NUMERIC),
+                        new SqlOutParameter(SqlParamNames.RESULT_CODE, Types.VARCHAR),
+                        new SqlOutParameter(SqlParamNames.RESULT_MESSAGE, Types.VARCHAR)
+                );
 
         this.getExpenseDetailCall = new SimpleJdbcCall(jdbcTemplate)
-                .withSchemaName("app_expense")
-                .withProcedureName("get_expense_detail")
-                .returningResultSet("expense", new ExpenseRowMapper());
+                .withSchemaName("APP_EXPENSE")
+                .withProcedureName("SP_GET_EXPENSE_DETAIL")
+                .withoutProcedureColumnMetaDataAccess()
+                .declareParameters(
+                        new SqlParameter(SqlParamNames.EXPENSE_ID, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.USER_ID, Types.NUMERIC),
+                        new SqlOutParameter(SqlParamNames.RESULT_CODE, Types.VARCHAR),
+                        new SqlOutParameter(SqlParamNames.RESULT_MESSAGE, Types.VARCHAR),
+                        new SqlOutParameter(SqlParamNames.EXPENSE_CURSOR, OracleTypes.CURSOR, new ExpenseRowMapper())
+                );
 
         this.searchExpensesCall = new SimpleJdbcCall(jdbcTemplate)
-                .withSchemaName("app_expense")
-                .withProcedureName("search_expenses")
-                .returningResultSet("expenses", new ExpenseRowMapper());
+                .withSchemaName("APP_EXPENSE")
+                .withProcedureName("SP_SEARCH_EXPENSE")
+                .withoutProcedureColumnMetaDataAccess()
+                .declareParameters(
+                        new SqlParameter(SqlParamNames.USER_ID, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.DATE_FROM, Types.DATE),
+                        new SqlParameter(SqlParamNames.DATE_TO, Types.DATE),
+                        new SqlParameter(SqlParamNames.CATEGORY_ID, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.PAGE, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.PAGE_SIZE, Types.NUMERIC),
+                        new SqlOutParameter(SqlParamNames.TOTAL_COUNT, Types.NUMERIC),
+                        new SqlOutParameter(SqlParamNames.RESULT_CODE, Types.VARCHAR),
+                        new SqlOutParameter(SqlParamNames.RESULT_MESSAGE, Types.VARCHAR),
+                        new SqlOutParameter(SqlParamNames.EXPENSE_CURSOR, OracleTypes.CURSOR, new ExpenseRowMapper())
+                );
     }
 
     @Override
-    @LoggedOperation("app_expense.create_expense")
+    @LoggedOperation("app_expense.SP_CREATE_EXPENSE")
     public CreateExpenseResult createExpense(
             Long userId, LocalDate expenseDate, BigDecimal amount, Integer categoryId,
             String invoiceNumber, String note
@@ -79,7 +133,7 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
     }
 
     @Override
-    @LoggedOperation("app_expense.update_expense")
+    @LoggedOperation("app_expense.SP_UPDATE_EXPENSE")
     public MutationResult updateExpense(
             Long expenseId, Long userId, LocalDate expenseDate, BigDecimal amount, Integer categoryId,
             String invoiceNumber, String note
@@ -100,7 +154,7 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
     }
 
     @Override
-    @LoggedOperation("app_expense.delete_expense")
+    @LoggedOperation("app_expense.SP_DELETE_EXPENSE")
     public MutationResult deleteExpense(Long expenseId, Long userId) {
         Map<String, Object> params = Map.of(
                 SqlParamNames.EXPENSE_ID, expenseId,
@@ -113,7 +167,7 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
     }
 
     @Override
-    @LoggedOperation("app_expense.get_expense_detail")
+    @LoggedOperation("app_expense.SP_GET_EXPENSE_DETAIL")
     public GetExpenseResult getExpenseDetail(Long expenseId, Long userId) {
         Map<String, Object> params = Map.of(
                 SqlParamNames.EXPENSE_ID, expenseId,
@@ -123,14 +177,14 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
         String resultCode = (String) result.get(SqlParamNames.RESULT_CODE);
 
         @SuppressWarnings("unchecked")
-        List<ExpenseRow> rows = (List<ExpenseRow>) result.get("expense");
+        List<ExpenseRow> rows = (List<ExpenseRow>) result.get(SqlParamNames.EXPENSE_CURSOR);
         Optional<ExpenseRow> expense = (rows == null || rows.isEmpty()) ? Optional.empty() : Optional.of(rows.get(0));
 
         return new GetExpenseResult(expense, resultCode, (String) result.get(SqlParamNames.RESULT_MESSAGE));
     }
 
     @Override
-    @LoggedOperation("app_expense.search_expenses")
+    @LoggedOperation("app_expense.SP_SEARCH_EXPENSE")
     public SearchExpensesResult searchExpenses(
             Long userId, LocalDate dateFrom, LocalDate dateTo, Integer categoryId, int page, int pageSize
     ) {
@@ -147,7 +201,7 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
         Number totalCount = (Number) result.get(SqlParamNames.TOTAL_COUNT);
 
         @SuppressWarnings("unchecked")
-        List<ExpenseRow> rows = (List<ExpenseRow>) result.get("expenses");
+        List<ExpenseRow> rows = (List<ExpenseRow>) result.get(SqlParamNames.EXPENSE_CURSOR);
 
         return new SearchExpensesResult(
                 rows == null ? List.of() : rows,

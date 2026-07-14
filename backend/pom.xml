@@ -67,11 +67,9 @@
             <artifactId>spring-boot-starter-log4j2</artifactId>
         </dependency>
 
-        <!-- Not runtime-scoped: the import repository directly builds a SQLServerDataTable
-             (mssql-jdbc's TVP type) to pass CSV rows as a Table-Valued Parameter. -->
         <dependency>
-            <groupId>com.microsoft.sqlserver</groupId>
-            <artifactId>mssql-jdbc</artifactId>
+            <groupId>com.oracle.database.jdbc</groupId>
+            <artifactId>ojdbc11</artifactId>
         </dependency>
 
         <dependency>

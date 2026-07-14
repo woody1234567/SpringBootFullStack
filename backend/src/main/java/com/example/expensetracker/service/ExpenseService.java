@@ -64,7 +64,7 @@ public class ExpenseService {
         SearchExpensesResult result = expenseRepository.searchExpenses(userId, dateFrom, dateTo, categoryId, page, pageSize);
 
         if (!ResultCode.SUCCESS.equals(result.resultCode())) {
-            log.error("app_expense.search_expenses returned result_code={}", result.resultCode());
+            log.error("app_expense.SP_SEARCH_EXPENSE returned result_code={}", result.resultCode());
             throw new IllegalStateException("Unable to complete the operation");
         }
 

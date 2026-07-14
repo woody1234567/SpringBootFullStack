@@ -13,7 +13,7 @@ import java.util.List;
 public class CategoryRepositoryImpl implements CategoryRepository {
 
     private static final String SELECT_ACTIVE_CATEGORIES =
-            "SELECT category_id, name FROM app_expense.v_active_categories ORDER BY name";
+            "SELECT category_id, name FROM app_expense.VW_ACTIVE_CATEGORY ORDER BY name";
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -22,7 +22,7 @@ public class CategoryRepositoryImpl implements CategoryRepository {
     }
 
     @Override
-    @LoggedOperation("app_expense.v_active_categories")
+    @LoggedOperation("app_expense.VW_ACTIVE_CATEGORY")
     public List<CategoryRow> getActiveCategories() {
         return jdbcTemplate.query(SELECT_ACTIVE_CATEGORIES, new CategoryRowMapper());
     }

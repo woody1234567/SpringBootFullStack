@@ -7,10 +7,14 @@ import com.example.expensetracker.repository.mapper.UserRowMapper;
 import com.example.expensetracker.repository.model.CreateUserResult;
 import com.example.expensetracker.repository.model.FindUserResult;
 import com.example.expensetracker.repository.model.UserRow;
+import oracle.jdbc.OracleTypes;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.SqlOutParameter;
+import org.springframework.jdbc.core.SqlParameter;
 import org.springframework.jdbc.core.simple.SimpleJdbcCall;
 import org.springframework.stereotype.Repository;
 
+import java.sql.Types;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,17 +28,32 @@ public class UserRepositoryImpl implements UserRepository {
 
     public UserRepositoryImpl(JdbcTemplate jdbcTemplate) {
         this.createUserCall = new SimpleJdbcCall(jdbcTemplate)
-                .withSchemaName("app_user")
-                .withProcedureName("create_user");
+                .withSchemaName("APP_USER")
+                .withProcedureName("SP_CREATE_USER")
+                .withoutProcedureColumnMetaDataAccess()
+                .declareParameters(
+                        new SqlParameter(SqlParamNames.EMAIL, Types.VARCHAR),
+                        new SqlParameter(SqlParamNames.PASSWORD_HASH, Types.VARCHAR),
+                        new SqlParameter(SqlParamNames.DISPLAY_NAME, Types.VARCHAR),
+                        new SqlOutParameter(SqlParamNames.USER_ID, Types.NUMERIC),
+                        new SqlOutParameter(SqlParamNames.RESULT_CODE, Types.VARCHAR),
+                        new SqlOutParameter(SqlParamNames.RESULT_MESSAGE, Types.VARCHAR)
+                );
 
         this.getUserByEmailCall = new SimpleJdbcCall(jdbcTemplate)
-                .withSchemaName("app_user")
-                .withProcedureName("get_user_by_email")
-                .returningResultSet("users", new UserRowMapper());
+                .withSchemaName("APP_USER")
+                .withProcedureName("SP_GET_USER_BY_EMAIL")
+                .withoutProcedureColumnMetaDataAccess()
+                .declareParameters(
+                        new SqlParameter(SqlParamNames.EMAIL, Types.VARCHAR),
+                        new SqlOutParameter(SqlParamNames.RESULT_CODE, Types.VARCHAR),
+                        new SqlOutParameter(SqlParamNames.RESULT_MESSAGE, Types.VARCHAR),
+                        new SqlOutParameter(SqlParamNames.USER_CURSOR, OracleTypes.CURSOR, new UserRowMapper())
+                );
     }
 
     @Override
-    @LoggedOperation("app_user.create_user")
+    @LoggedOperation("app_user.SP_CREATE_USER")
     public CreateUserResult createUser(String email, String passwordHash, String displayName) {
         Map<String, Object> params = new HashMap<>();
         params.put(SqlParamNames.EMAIL, email);
@@ -51,7 +70,7 @@ public class UserRepositoryImpl implements UserRepository {
     }
 
     @Override
-    @LoggedOperation("app_user.get_user_by_email")
+    @LoggedOperation("app_user.SP_GET_USER_BY_EMAIL")
     public FindUserResult findByEmail(String email) {
         Map<String, Object> result = getUserByEmailCall.execute(Map.of(SqlParamNames.EMAIL, email));
 
@@ -59,7 +78,7 @@ public class UserRepositoryImpl implements UserRepository {
         String resultMessage = (String) result.get(SqlParamNames.RESULT_MESSAGE);
 
         @SuppressWarnings("unchecked")
-        List<UserRow> users = (List<UserRow>) result.get("users");
+        List<UserRow> users = (List<UserRow>) result.get(SqlParamNames.USER_CURSOR);
         Optional<UserRow> user = (users == null || users.isEmpty()) ? Optional.empty() : Optional.of(users.get(0));
 
         return new FindUserResult(user, resultCode, resultMessage);

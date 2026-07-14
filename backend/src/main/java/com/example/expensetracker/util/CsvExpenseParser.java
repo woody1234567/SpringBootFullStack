@@ -22,8 +22,8 @@ import java.util.Set;
  * Parses an uploaded expense CSV file into typed rows. Only handles safe type
  * coercion and structural validation (header shape, readability) — business
  * validation (unknown category, non-positive amount, duplicate invoice number)
- * is deliberately left to the SQL Server stored procedure per the
- * database-centric architecture (.claude/CLAUDE.md section 4).
+ * is deliberately left to the Oracle stored procedure per the
+ * database-centric architecture.
  */
 @Component
 public class CsvExpenseParser {

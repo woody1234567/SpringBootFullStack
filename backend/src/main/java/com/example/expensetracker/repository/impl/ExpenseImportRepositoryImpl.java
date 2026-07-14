@@ -7,58 +7,61 @@ import com.example.expensetracker.repository.mapper.ImportRowFailureMapper;
 import com.example.expensetracker.repository.model.ImportBatchResult;
 import com.example.expensetracker.repository.model.ImportRowFailure;
 import com.example.expensetracker.repository.model.ParsedExpenseImportRow;
-import com.microsoft.sqlserver.jdbc.SQLServerDataTable;
-import microsoft.sql.Types;
+import oracle.jdbc.OracleConnection;
+import oracle.jdbc.OracleTypes;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.SqlOutParameter;
 import org.springframework.jdbc.core.SqlParameter;
+import org.springframework.jdbc.core.SqlTypeValue;
 import org.springframework.jdbc.core.simple.SimpleJdbcCall;
 import org.springframework.stereotype.Repository;
 
 import java.sql.Date;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.sql.Struct;
+import java.sql.Types;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Calls app_expense.import_expenses_batch, passing the CSV rows as a single
- * Table-Valued Parameter so SQL Server performs the whole-batch validation and
- * atomic insert in one round trip (see .claude/CLAUDE.md section 9 — database-
- * owned transaction pattern).
+ * Calls app_expense.SP_IMPORT_EXPENSE_BATCH, passing CSV rows as an Oracle
+ * nested table so the database performs whole-batch validation and insert in
+ * one round trip.
  */
 @Repository
 public class ExpenseImportRepositoryImpl implements ExpenseImportRepository {
 
-    private static final String TVP_TYPE_NAME = "app_expense.expense_import_row_type";
+    private static final String IMPORT_ROW_OBJECT_TYPE = "APP_EXPENSE.TO_EXPENSE_IMPORT_ROW";
+    private static final String IMPORT_ROW_TABLE_TYPE = "APP_EXPENSE.TT_EXPENSE_IMPORT_ROW";
 
     private final SimpleJdbcCall importBatchCall;
 
     public ExpenseImportRepositoryImpl(JdbcTemplate jdbcTemplate) {
-        // Metadata lookup for TVP-accepting procedures is unreliable, so parameters
-        // are declared explicitly per .claude/CLAUDE.md section 6.
         this.importBatchCall = new SimpleJdbcCall(jdbcTemplate)
-                .withSchemaName("app_expense")
-                .withProcedureName("import_expenses_batch")
+                .withSchemaName("APP_EXPENSE")
+                .withProcedureName("SP_IMPORT_EXPENSE_BATCH")
                 .withoutProcedureColumnMetaDataAccess()
                 .declareParameters(
-                        new SqlParameter(SqlParamNames.USER_ID, java.sql.Types.BIGINT),
-                        new SqlParameter(SqlParamNames.FILE_NAME, java.sql.Types.NVARCHAR),
-                        new SqlParameter(SqlParamNames.ROWS, Types.STRUCTURED, TVP_TYPE_NAME),
-                        new SqlOutParameter(SqlParamNames.BATCH_ID, java.sql.Types.BIGINT),
-                        new SqlOutParameter(SqlParamNames.SUCCESS_COUNT, java.sql.Types.INTEGER),
-                        new SqlOutParameter(SqlParamNames.RESULT_CODE, java.sql.Types.NVARCHAR),
-                        new SqlOutParameter(SqlParamNames.RESULT_MESSAGE, java.sql.Types.NVARCHAR)
-                )
-                .returningResultSet("failed_rows", new ImportRowFailureMapper());
+                        new SqlParameter(SqlParamNames.USER_ID, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.FILE_NAME, Types.VARCHAR),
+                        new SqlParameter(SqlParamNames.ROWS, Types.ARRAY, IMPORT_ROW_TABLE_TYPE),
+                        new SqlOutParameter(SqlParamNames.BATCH_ID, Types.NUMERIC),
+                        new SqlOutParameter(SqlParamNames.SUCCESS_COUNT, Types.NUMERIC),
+                        new SqlOutParameter(SqlParamNames.RESULT_CODE, Types.VARCHAR),
+                        new SqlOutParameter(SqlParamNames.RESULT_MESSAGE, Types.VARCHAR),
+                        new SqlOutParameter(SqlParamNames.FAILED_CURSOR, OracleTypes.CURSOR, new ImportRowFailureMapper())
+                );
     }
 
     @Override
-    @LoggedOperation("app_expense.import_expenses_batch")
+    @LoggedOperation("app_expense.SP_IMPORT_EXPENSE_BATCH")
     public ImportBatchResult importBatch(Long userId, String fileName, List<ParsedExpenseImportRow> rows) {
         Map<String, Object> params = new HashMap<>();
         params.put(SqlParamNames.USER_ID, userId);
         params.put(SqlParamNames.FILE_NAME, fileName);
-        params.put(SqlParamNames.ROWS, toDataTable(rows));
+        params.put(SqlParamNames.ROWS, toOracleRows(rows));
 
         Map<String, Object> result = importBatchCall.execute(params);
 
@@ -67,7 +70,7 @@ public class ExpenseImportRepositoryImpl implements ExpenseImportRepository {
         Number successCount = (Number) result.get(SqlParamNames.SUCCESS_COUNT);
 
         @SuppressWarnings("unchecked")
-        List<ImportRowFailure> failedRows = (List<ImportRowFailure>) result.get("failed_rows");
+        List<ImportRowFailure> failedRows = (List<ImportRowFailure>) result.get(SqlParamNames.FAILED_CURSOR);
 
         return new ImportBatchResult(
                 batchId == null ? null : batchId.longValue(),
@@ -77,28 +80,27 @@ public class ExpenseImportRepositoryImpl implements ExpenseImportRepository {
                 failedRows == null ? List.of() : failedRows);
     }
 
-    private SQLServerDataTable toDataTable(List<ParsedExpenseImportRow> rows) {
-        try {
-            SQLServerDataTable table = new SQLServerDataTable();
-            table.addColumnMetadata("row_number", java.sql.Types.INTEGER);
-            table.addColumnMetadata("expense_date", java.sql.Types.DATE);
-            table.addColumnMetadata("amount", java.sql.Types.DECIMAL);
-            table.addColumnMetadata("category_name", java.sql.Types.NVARCHAR);
-            table.addColumnMetadata("invoice_number", java.sql.Types.NVARCHAR);
-            table.addColumnMetadata("note", java.sql.Types.NVARCHAR);
+    private SqlTypeValue toOracleRows(List<ParsedExpenseImportRow> rows) {
+        return new SqlTypeValue() {
+            @Override
+            public void setTypeValue(PreparedStatement ps, int paramIndex, int sqlType, String typeName)
+                    throws SQLException {
+                Struct[] structs = new Struct[rows.size()];
+                for (int i = 0; i < rows.size(); i++) {
+                    ParsedExpenseImportRow row = rows.get(i);
+                    structs[i] = ps.getConnection().createStruct(IMPORT_ROW_OBJECT_TYPE, new Object[]{
+                            row.rowNumber(),
+                            row.expenseDate() == null ? null : Date.valueOf(row.expenseDate()),
+                            row.amount(),
+                            row.categoryName(),
+                            row.invoiceNumber(),
+                            row.note()
+                    });
+                }
 
-            for (ParsedExpenseImportRow row : rows) {
-                table.addRow(
-                        row.rowNumber(),
-                        row.expenseDate() == null ? null : Date.valueOf(row.expenseDate()),
-                        row.amount(),
-                        row.categoryName(),
-                        row.invoiceNumber(),
-                        row.note());
+                OracleConnection oracleConnection = ps.getConnection().unwrap(OracleConnection.class);
+                ps.setArray(paramIndex, oracleConnection.createOracleArray(IMPORT_ROW_TABLE_TYPE, structs));
             }
-            return table;
-        } catch (java.sql.SQLException ex) {
-            throw new IllegalStateException("Unable to build the CSV import table parameter", ex);
-        }
+        };
     }
 }

@@ -2,7 +2,7 @@
 
 Spring Boot 3 (Java 21) REST API for a personal expense/invoice tracker. It follows a
 database-centric architecture: business rules, validation, and multi-table workflows live in
-SQL Server stored procedures, functions, and views; the Java layers handle HTTP, security, and
+Oracle stored procedures, functions, and views; the Java layers handle HTTP, security, and
 orchestration only.
 
 ```text
@@ -10,36 +10,36 @@ Vue 3 + TypeScript Frontend
         ↓
 Spring Boot REST API (Controller → Service → Repository)
         ↓
-SQL Server Stored Procedures / Functions / Views
+Oracle Stored Procedures / Functions / Views
         ↓
-SQL Server Tables
+Oracle Tables
 ```
 
 ## Core Features
 
 - **Authentication** (`/api/auth`) – Email/password registration and login. Passwords are hashed
-  with BCrypt; `app_user.create_user` and the login lookup enforce email uniqueness and account
+  with BCrypt; `app_user.SP_CREATE_USER` and the login lookup enforce email uniqueness and account
   status in the database. A successful login/register returns a JWT (`AuthResponse`) used as a
   stateless Bearer token for all subsequent requests (`SessionCreationPolicy.STATELESS`,
   `JwtAuthenticationFilter`).
 - **Expense CRUD** (`/api/expenses`) – Create, update, delete, fetch-by-id, and paginated
   search (filterable by date range and category) for the authenticated user's own expenses.
-  Each operation maps to a stored procedure (`app_expense.create_expense`,
-  `update_expense`, etc.) that owns validation (positive amount, valid category, duplicate
-  invoice number per user) and returns a `result_code`/`result_message` pair that the repository
+  Each operation maps to a stored procedure (`app_expense.SP_CREATE_EXPENSE`,
+  `SP_UPDATE_EXPENSE`, etc.) that owns validation (positive amount, valid category, duplicate
+  invoice number per user) and returns a `p_result_code`/`p_result_message` pair that the repository
   translates into typed results and, ultimately, HTTP status codes.
 - **Categories** (`/api/categories`) – Read-only list of active expense categories, backed by
-  the `app_expense.v_active_categories` view.
+  the `app_expense.VW_ACTIVE_CATEGORY` view.
 - **CSV batch import** (`/api/imports/expenses`) – Multipart upload of a CSV file
   (`expense_date, amount, category, invoice_number, note` columns) to bulk-create expenses.
   `CsvExpenseParser` handles structural parsing only (headers, type coercion, BOM/UTF-8); all
-  business validation happens in `app_expense.import_expenses_batch`, which is **all-or-nothing**
+  business validation happens in `app_expense.SP_IMPORT_EXPENSE_BATCH`, which is **all-or-nothing**
   — if any row fails, the whole batch is rolled back and the failing rows are returned with
   reasons, while an audit row is still written to `import_batches` either way.
 - **Standardized API responses** – Every endpoint returns the same envelope
   (`{ "success", "message", "data" }` on success; `{ "success": false, "message", "errorCode",
   "errors" }` on failure) via a `@RestControllerAdvice` global exception handler that maps
-  business exceptions to HTTP status codes without leaking SQL Server internals.
+  business exceptions to HTTP status codes without leaking Oracle internals.
 - **Centralized AOP logging** – A single Spring AOP aspect (`LoggingAspect`) logs method entry,
   exit, duration, and exceptions across the Controller, Service, and Repository layers, so no
   individual class hand-writes entry/exit logging anymore. See [Logging](#logging) below.
@@ -87,13 +87,27 @@ Oracle schemas (users) group related objects, applied in order from `src/main/re
 | `005_procs_app_expense_crud.sql` | `app_expense.SP_CREATE_EXPENSE`, `SP_UPDATE_EXPENSE`, `SP_DELETE_EXPENSE`, `SP_GET_EXPENSE_DETAIL`, `SP_SEARCH_EXPENSE` |
 | `006_view_active_categories.sql` | `app_expense.VW_ACTIVE_CATEGORY` view |
 | `007_proc_import_expenses_batch.sql` | `app_expense.SP_IMPORT_EXPENSE_BATCH` — atomic CSV bulk import |
+| `008_grants_runtime_user.sql` | Grants `EXPENSE_TRACKER` the execute/select privileges needed by the backend and local database tools |
 
 These scripts are **not** run automatically (no Flyway/Liquibase dependency is wired in) — apply
 them manually and in numeric order against your Oracle database before starting the app,
 e.g. with SQL*Plus or SQLcl.
 
+Before running `008_grants_runtime_user.sql`, create the runtime connection user with a real
+password:
+
+```sql
+CREATE USER expense_tracker IDENTIFIED BY "<strong-password>";
+```
+
+The runtime user is intentionally separate from the object-owning schemas. `APP_USER` and
+`APP_EXPENSE` own the tables/procedures/views; `EXPENSE_TRACKER` connects from Spring Boot and
+receives only the required privileges. When connected as `EXPENSE_TRACKER` in VSCode Database
+Client, use the schema-qualified names (`app_user.TB_USER`, `app_expense.TB_EXPENSE`) or expand
+the `APP_USER` / `APP_EXPENSE` schemas under the client schema browser.
+
 Stored procedures follow a consistent result convention: business outcomes are reported via
-`@result_code` / `@result_message` output parameters (`SUCCESS`, `VALIDATION_ERROR`, `NOT_FOUND`,
+`p_result_code` / `p_result_message` output parameters (`SUCCESS`, `VALIDATION_ERROR`, `NOT_FOUND`,
 `DUPLICATE`, `SYSTEM_ERROR`, ...), which the repository layer maps to Java exceptions and the
 global exception handler maps to HTTP status codes.
 
@@ -122,8 +136,8 @@ single Spring AOP aspect rather than hand-written per method:
     produces a stack of paired ENTER/EXIT lines, one per layer — this is expected, not duplicated
     logging.
 - **`aspect.@LoggedOperation("app_schema.object_name")`** — annotate a Repository method with the
-  literal SQL Server stored procedure/function/view it calls so the log line shows the real SQL
-  object name (e.g. `app_user.create_user`) instead of the Java method name. Used on all
+  literal Oracle stored procedure/function/view it calls so the log line shows the real database
+  object name (e.g. `app_user.SP_CREATE_USER`) instead of the Java method name. Used on all
   Repository impl methods; Service/Controller methods fall back to `ClassName.methodName`.
 - **`util.SensitiveDataMasker`** redacts arguments and return values before they're logged, so
   `LoggingAspect` never needs per-call masking code:
@@ -150,8 +164,8 @@ single Spring AOP aspect rather than hand-written per method:
 
 - **Java 21** (matches `java.version` in `pom.xml`)
 - **Maven** (or the bundled `./mvnw` wrapper, if present in your checkout)
-- **Microsoft SQL Server** reachable from the app, with the migration scripts above applied
-- A SQL Server login with rights to the `app_user` / `app_expense` schemas
+- **Oracle Database** reachable from the app, with the migration scripts above applied
+- An Oracle runtime user, normally `EXPENSE_TRACKER`, with `008_grants_runtime_user.sql` applied
 
 ### Configuration
 
@@ -167,13 +181,11 @@ outside local development):
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
-| `DB_HOST` | SQL Server host | `localhost` |
-| `DB_PORT` | SQL Server port | `1433` |
-| `DB_NAME` | Database name | `expense_tracker` |
-| `DB_ENCRYPT` | Enable encrypted JDBC connection | `true` |
-| `DB_TRUST_CERT` | Trust the server certificate (dev convenience only) | `true` |
-| `DB_USER` | SQL Server login | *(required)* |
-| `DB_PASSWORD` | SQL Server password | *(required)* |
+| `DB_HOST` | Oracle host | `localhost` |
+| `DB_PORT` | Oracle listener port | `1521` |
+| `DB_SERVICE_NAME` | Oracle service name | `FREEPDB1` |
+| `DB_USER` | Oracle runtime user | `EXPENSE_TRACKER` |
+| `DB_PASSWORD` | Oracle password | *(required)* |
 | `JWT_SECRET` | HMAC signing secret for JWTs | *(required)* |
 | `JWT_EXPIRATION_MS` | JWT lifetime in milliseconds | `86400000` (24h) |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated allowed origins | `http://localhost:5173` |
@@ -184,9 +196,9 @@ imports are required.
 
 ## Deployment Steps
 
-1. **Provision SQL Server** and create the target database (`DB_NAME`).
+1. **Provision Oracle Database** and create/apply the target schemas.
 2. **Apply the migration scripts** in `src/main/resources/db/migration/`, in numeric order
-   (001 → 008), against that database.
+   (000 → 008), against that database. Create `EXPENSE_TRACKER` before running `008`.
 3. **Configure the application**: copy `application-example.yml` to `application.yml` (or set the
    equivalent environment variables directly) and provide real `DB_USER`, `DB_PASSWORD`, and a
    strong, unique `JWT_SECRET`. Never commit real credentials.

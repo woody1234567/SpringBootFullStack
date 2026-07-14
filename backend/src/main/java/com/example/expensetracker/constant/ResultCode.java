@@ -1,9 +1,8 @@
 package com.example.expensetracker.constant;
 
 /**
- * Result codes returned by SQL Server stored procedures via the
- * {@code @result_code} output parameter. Mirrors the convention documented in
- * .claude/CLAUDE.md section 7.
+ * Result codes returned by Oracle stored procedures via the
+ * {@code p_result_code} output parameter.
  */
 public final class ResultCode {
 

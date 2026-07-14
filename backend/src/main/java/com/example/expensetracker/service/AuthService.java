@@ -34,7 +34,7 @@ public class AuthService {
             throw new DuplicateResourceException("Email already exists");
         }
         if (!ResultCode.SUCCESS.equals(result.resultCode())) {
-            log.error("app_user.create_user returned result_code={}", result.resultCode());
+            log.error("app_user.SP_CREATE_USER returned result_code={}", result.resultCode());
             throw new IllegalStateException("Unable to complete the operation");
         }
 
