@@ -61,14 +61,14 @@ BEGIN
         -- Always hand back an opened (empty) cursor so the caller never fetches
         -- from an unopened ref cursor.
         OPEN p_user_cursor FOR
-            SELECT user_id, email, password_hash, display_name, is_active
+            SELECT user_id, email, password_hash, display_name, role, is_active
             FROM app_user.TB_USER
             WHERE 1 = 0;
         RETURN;
     END IF;
 
     OPEN p_user_cursor FOR
-        SELECT user_id, email, password_hash, display_name, is_active
+        SELECT user_id, email, password_hash, display_name, role, is_active
         FROM app_user.TB_USER
         WHERE email = p_email;
 

@@ -58,4 +58,4 @@ dto/response/*.java       ← 對外的 API 回應 DTO
 
 ## 正確做法
 
-Service 層把 `UserRow`/`CreateUserResult` 轉換成 `dto/response/UserResponse` 之類的物件，只挑出前端該知道的欄位（如 `userId`、`email`、`displayName`），過濾掉 `passwordHash`、`resultCode` 這類內部資訊。
+Service 層把 `UserRow`/`CreateUserResult` 轉換成 `dto/response/UserResponse` 之類的物件，只挑出前端該知道的欄位（如 `userId`、`email`、`displayName`、`role`），過濾掉 `passwordHash`、`resultCode` 這類內部資訊。

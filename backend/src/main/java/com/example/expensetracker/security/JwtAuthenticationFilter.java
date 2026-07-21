@@ -34,7 +34,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 .flatMap(jwtTokenProvider::parseToken)
                 .ifPresent(authenticatedUser -> {
                     var authentication = new UsernamePasswordAuthenticationToken(
-                            authenticatedUser, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+                            authenticatedUser,
+                            null,
+                            List.of(new SimpleGrantedAuthority(authenticatedUser.authority()))
+                    );
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                 });
 

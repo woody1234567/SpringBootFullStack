@@ -24,20 +24,20 @@ JwtAuthenticationFilter (OncePerRequestFilter) → 驗證 JWT → 寫入 Securit
 
 - 使用 **jjwt** 函式庫 (`io.jsonwebtoken`)
 - 建構子從 `application.yml` 注入 `app.jwt.secret`、`app.jwt.expiration-ms`，用 `Keys.hmacShaKeyFor(...)` 把字串密鑰轉成 `SecretKey`，代表演算法是 **HMAC-SHA (HS256/384/512，依 key 長度自動決定)**
-- `generateToken(userId, email)`：
+- `generateToken(userId, email, role)`：
   - `subject` = userId
-  - 自訂 claim `email`
+  - 自訂 claim `email` / `role`
   - `issuedAt` / `expiration`（目前設定 `86400000` ms = 24 小時，可用環境變數 `JWT_SECRET` / `JWT_EXPIRATION_MS` 覆蓋）
   - `signWith(signingKey)` 簽章後 `.compact()` 輸出字串
 - `parseToken(token)`：用同一把 key 驗證簽章並解析 claims，失敗（過期、簽章不符等）回傳 `Optional.empty()` 而不是拋例外往外洩漏細節
 
-**簽發時機**：`AuthService.register()` 和 `AuthService.login()` 在密碼用 `BCryptPasswordEncoder` 驗證/雜湊通過、且透過 SQL Server 預存程序 (`app_user.create_user`) 或查詢 (`findByEmail`) 拿到使用者資料後，呼叫 `jwtTokenProvider.generateToken(userId, email)`，回傳 `AuthResponse(token, user)` 給前端。這符合本專案「業務邏輯留在 SQL Server，Service 層只做應用編排」的原則。
+**簽發時機**：`AuthService.register()` 和 `AuthService.login()` 在密碼用 `BCryptPasswordEncoder` 驗證/雜湊通過、且透過資料庫預存程序拿到使用者資料後，呼叫 `jwtTokenProvider.generateToken(userId, email, role)`，回傳 `AuthResponse(token, user)` 給前端。
 
 ## 2. 每次請求的驗證 (`JwtAuthenticationFilter`)
 
 - 繼承 `OncePerRequestFilter`，從 `Authorization: Bearer <token>` header 取出 token
-- 呼叫 `jwtTokenProvider.parseToken(token)`，成功則包成 `AuthenticatedUser(userId, email)` record 當作 principal，塞進 `UsernamePasswordAuthenticationToken`，寫入 `SecurityContextHolder`
-- 目前寫死授權為 `ROLE_USER`（單一角色，沒有從 DB 查角色）
+- 呼叫 `jwtTokenProvider.parseToken(token)`，成功則包成 `AuthenticatedUser(userId, email, role)` record 當作 principal，塞進 `UsernamePasswordAuthenticationToken`，寫入 `SecurityContextHolder`
+- 依 JWT `role` claim 映射 authority：`admin` → `ROLE_ADMIN`，`user` → `ROLE_USER`
 - 沒有 token 或驗證失敗就直接放行到下一個 filter，交給後面的 `authorizeHttpRequests` 規則擋下（未認證會走到 `authenticationEntryPoint`）
 
 ## 3. 安全設定 (`SecurityConfig`)
@@ -46,7 +46,7 @@ JwtAuthenticationFilter (OncePerRequestFilter) → 驗證 JWT → 寫入 Securit
 - **CSRF disabled**（stateless API 不需要）
 - **CORS**：從 `app.cors.allowed-origins` 讀取允許來源
 - `/api/auth/**` 全開放（註冊/登入不需先登入），dev/local profile 額外開放 Swagger
-- 其餘路徑一律 `authenticated()`
+- 其餘路徑允許 `ADMIN` / `USER` 角色使用
 - `JwtAuthenticationFilter` 用 `addFilterBefore(..., UsernamePasswordAuthenticationFilter.class)` 插入 filter chain，取代 Spring Security 預設的表單登入流程
 - 未認證時自訂 `authenticationEntryPoint`，回傳專案統一的 `ApiResponse` 錯誤格式（401 + `UNAUTHORIZED`），而不是 Spring 預設的 HTML 錯誤頁
 
@@ -57,5 +57,5 @@ JwtAuthenticationFilter (OncePerRequestFilter) → 驗證 JWT → 寫入 Securit
 
 ## 未來可擴充方向
 
-- 角色/權限目前寫死 `ROLE_USER`，若要支援多角色需從 DB 查詢並放入 JWT claim 或每次查詢
+- 目前支援 `admin` / `user` 兩種角色；若要新增角色，需同步 DB check constraint、`UserRole`、JWT 與授權規則
 - 目前沒有 refresh token 機制，token 過期後需重新登入

@@ -41,12 +41,12 @@ filterChain.doFilter(request, response);
 流程是一串 `Optional` 鏈式操作：
 
 1. `extractToken(request)` → `Optional<String>`，從 header 拿出 raw token 字串
-2. `.flatMap(jwtTokenProvider::parseToken)` → 呼叫 `JwtTokenProvider.parseToken(token)`，內部驗證簽章、解析 claims，成功則回傳 `Optional<AuthenticatedUser>`（`AuthenticatedUser` 是包含 `userId`、`email` 的 record），失敗（過期、簽章不符、格式錯誤）則回傳 `Optional.empty()`
+2. `.flatMap(jwtTokenProvider::parseToken)` → 呼叫 `JwtTokenProvider.parseToken(token)`，內部驗證簽章、解析 claims，成功則回傳 `Optional<AuthenticatedUser>`（`AuthenticatedUser` 是包含 `userId`、`email`、`role` 的 record），失敗（過期、簽章不符、格式錯誤）則回傳 `Optional.empty()`
 3. `.ifPresent(...)` → 只有在成功解析出使用者時才執行：
-   - 建立 `UsernamePasswordAuthenticationToken`，把 `AuthenticatedUser` 當作 principal，credentials 給 `null`（JWT 場景不需要密碼），authorities 固定給一個 `ROLE_USER`
+   - 建立 `UsernamePasswordAuthenticationToken`，把 `AuthenticatedUser` 當作 principal，credentials 給 `null`（JWT 場景不需要密碼），authorities 依 role 映射為 `ROLE_ADMIN` 或 `ROLE_USER`
    - 寫入 `SecurityContextHolder`，代表這個 request 的上下文中「已通過驗證」
 
-**關鍵設計**：無論 token 有沒有、解析成不成功，最後都會呼叫 `filterChain.doFilter(request, response)` 放行到下一個 filter，本身**不會**直接擋下或回傳錯誤。真正擋下未驗證請求的是後面 `SecurityConfig` 裡的 `authorizeHttpRequests(...).anyRequest().authenticated()` 規則 —— 如果 `SecurityContext` 裡沒有 authentication，Spring Security 會觸發 `authenticationEntryPoint`（即 `SecurityConfig.handleUnauthenticated`），回傳統一格式的 401 JSON。
+**關鍵設計**：無論 token 有沒有、解析成不成功，最後都會呼叫 `filterChain.doFilter(request, response)` 放行到下一個 filter，本身**不會**直接擋下或回傳錯誤。真正擋下未驗證請求的是後面 `SecurityConfig` 裡的 `authorizeHttpRequests(...).anyRequest().hasAnyRole("ADMIN", "USER")` 規則 —— 如果 `SecurityContext` 裡沒有 authentication，Spring Security 會觸發 `authenticationEntryPoint`（即 `SecurityConfig.handleUnauthenticated`），回傳統一格式的 401 JSON。
 
 這種「filter 只負責認證，交給 authorizeHttpRequests 決定要不要放行」的分工，讓 `/api/auth/**` 這種 `permitAll()` 的端點即使帶著壞掉的 token 也不會被擋，設計上較有彈性。
 
@@ -67,5 +67,5 @@ private Optional<String> extractToken(HttpServletRequest request) {
 
 ## 目前設計上的限制 / 可觀察點
 
-- **角色寫死**：目前不論哪個使用者，authorities 都固定是 `ROLE_USER`，沒有從資料庫查詢實際角色。若之後要做多角色/權限控管，需要在 `AuthenticatedUser` 或 JWT claim 中帶入角色資訊，並在這裡動態組出對應的 `GrantedAuthority` 清單（呼應 [Intro.md](./Intro.md) 「未來可擴充方向」）
+- **角色來源**：角色由登入/註冊流程寫入 JWT `role` claim，filter 驗證後動態組出對應的 `GrantedAuthority` 清單；目前支援 `admin` / `user`
 - **沒有例外處理的分支**：所有失敗情境（token 不存在、格式錯、過期、簽章錯）都被 `Optional.empty()` 統一吸收，過濾器本身不會記錄失敗原因；若未來要做安全稽核（例如記錄可疑的偽造 token 嘗試），需要額外在 `parseToken` 或這裡加上 log

@@ -67,7 +67,7 @@ public class SecurityConfig {
                                 "/api-docs/**"
                         ).permitAll();
                     }
-                    auth.anyRequest().authenticated();
+                    auth.anyRequest().hasAnyRole("ADMIN", "USER");
                 })
                 .exceptionHandling(handling -> handling.authenticationEntryPoint(this::handleUnauthenticated))
                 .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);

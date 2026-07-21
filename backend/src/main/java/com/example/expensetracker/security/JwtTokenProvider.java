@@ -17,6 +17,7 @@ import java.util.regex.Pattern;
 public class JwtTokenProvider {
 
     private static final String CLAIM_EMAIL = "email";
+    private static final String CLAIM_ROLE = "role";
     private static final Pattern GUID_PATTERN = Pattern.compile("^[0-9A-F]{32}$");
 
     private final SecretKey signingKey;
@@ -30,13 +31,15 @@ public class JwtTokenProvider {
         this.expirationMs = expirationMs;
     }
 
-    public String generateToken(String userId, String email) {
+    public String generateToken(String userId, String email, String role) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + expirationMs);
+        String normalizedRole = UserRole.require(role).value();
 
         return Jwts.builder()
                 .subject(userId)
                 .claim(CLAIM_EMAIL, email)
+                .claim(CLAIM_ROLE, normalizedRole)
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(signingKey)
@@ -57,7 +60,9 @@ public class JwtTokenProvider {
             }
 
             String email = claims.get(CLAIM_EMAIL, String.class);
-            return Optional.of(new AuthenticatedUser(userId, email));
+            String role = claims.get(CLAIM_ROLE, String.class);
+            return UserRole.fromValue(role)
+                    .map(userRole -> new AuthenticatedUser(userId, email, userRole.value()));
         } catch (JwtException | IllegalArgumentException ex) {
             return Optional.empty();
         }

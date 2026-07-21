@@ -11,6 +11,7 @@ import com.example.expensetracker.repository.model.CreateUserResult;
 import com.example.expensetracker.repository.model.FindUserResult;
 import com.example.expensetracker.repository.model.UserRow;
 import com.example.expensetracker.security.JwtTokenProvider;
+import com.example.expensetracker.security.UserRole;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -38,8 +39,9 @@ public class AuthService {
             throw new IllegalStateException("Unable to complete the operation");
         }
 
-        String token = jwtTokenProvider.generateToken(result.userId(), request.email());
-        UserResponse user = new UserResponse(result.userId(), request.email(), request.displayName());
+        String role = UserRole.USER.value();
+        String token = jwtTokenProvider.generateToken(result.userId(), request.email(), role);
+        UserResponse user = new UserResponse(result.userId(), request.email(), request.displayName(), role);
         return new AuthResponse(token, user);
     }
 
@@ -51,8 +53,9 @@ public class AuthService {
                 .filter(UserRow::active)
                 .orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
 
-        String token = jwtTokenProvider.generateToken(userRow.userId(), userRow.email());
-        UserResponse user = new UserResponse(userRow.userId(), userRow.email(), userRow.displayName());
+        String role = UserRole.require(userRow.role()).value();
+        String token = jwtTokenProvider.generateToken(userRow.userId(), userRow.email(), role);
+        UserResponse user = new UserResponse(userRow.userId(), userRow.email(), userRow.displayName(), role);
         return new AuthResponse(token, user);
     }
 }

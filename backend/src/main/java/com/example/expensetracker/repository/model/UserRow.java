@@ -5,6 +5,7 @@ public record UserRow(
         String email,
         String passwordHash,
         String displayName,
+        String role,
         boolean active
 ) {
 }

@@ -48,6 +48,7 @@ public String generateToken(String userId, String email) {
 
 - `subject`：放字串 GUID `userId`，JWT 標準欄位，代表這個 token 屬於誰
 - `claim(CLAIM_EMAIL, email)`：自訂欄位，額外把 email 帶進 token，讓後續驗證時不用再查資料庫就能拿到 email
+- `claim(CLAIM_ROLE, role)`：自訂欄位，保存 `admin` / `user` 角色，供 filter 建立 Spring Security authority
 - `issuedAt` / `expiration`：簽發時間與到期時間，到期時間 = 簽發時間 + `expirationMs`
 - `signWith(signingKey)`：用 HMAC 密鑰簽章，確保 token 沒有被竄改
 - `.compact()`：輸出最終的 JWT 字串（`header.payload.signature` 格式）
@@ -67,7 +68,9 @@ public Optional<AuthenticatedUser> parseToken(String token) {
 
         String userId = claims.getSubject();
         String email = claims.get(CLAIM_EMAIL, String.class);
-        return Optional.of(new AuthenticatedUser(userId, email));
+        String role = claims.get(CLAIM_ROLE, String.class);
+        return UserRole.fromValue(role)
+                .map(userRole -> new AuthenticatedUser(userId, email, userRole.value()));
     } catch (JwtException | IllegalArgumentException ex) {
         return Optional.empty();
     }
@@ -75,7 +78,7 @@ public Optional<AuthenticatedUser> parseToken(String token) {
 ```
 
 - `Jwts.parser().verifyWith(signingKey).build().parseSignedClaims(token)`：用同一把簽章密鑰驗證 token 的簽章與格式，並解析出 payload（`Claims`）
-- 從 claims 還原字串 GUID `userId`（`subject`）與 `email`（自訂 claim），組成 `AuthenticatedUser(userId, email)` record 回傳
+- 從 claims 還原字串 GUID `userId`（`subject`）、`email` 與 `role`（自訂 claim），組成 `AuthenticatedUser(userId, email, role)` record 回傳
 - **關鍵設計**：回傳型別是 `Optional<AuthenticatedUser>` 而不是直接回傳 `Claims` 或拋例外。任何驗證失敗的情境（簽章不符、token 過期、格式錯誤 → `JwtException`；subject 缺失或非法 → `IllegalArgumentException`）都被 `catch` 統一吞下，回傳 `Optional.empty()`
 - 這樣設計的好處：呼叫端（`JwtAuthenticationFilter`）不需要處理例外，只要用 `Optional` 鏈式操作（`flatMap` / `ifPresent`）即可，也避免把 JWT 函式庫的例外細節（例如過期訊息）意外洩漏到上層或回應給前端
 
@@ -87,7 +90,7 @@ public Optional<AuthenticatedUser> parseToken(String token) {
 ## 與其他元件的關係
 
 ```text
-AuthService --generateToken(userId, email)--> JwtTokenProvider --> JWT 字串 --> 回給前端
+AuthService --generateToken(userId, email, role)--> JwtTokenProvider --> JWT 字串 --> 回給前端
 JwtAuthenticationFilter --parseToken(token)--> JwtTokenProvider --> Optional<AuthenticatedUser> --> 寫入 SecurityContext
 ```
 

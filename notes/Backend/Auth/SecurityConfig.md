@@ -52,12 +52,12 @@ auth.requestMatchers("/api/auth/**").permitAll();
 if (isDevProfile) {
     auth.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/api-docs", "/api-docs/**").permitAll();
 }
-auth.anyRequest().authenticated();
+auth.anyRequest().hasAnyRole("ADMIN", "USER");
 ```
 
 - `/api/auth/**`（登入、註冊等）永遠開放，不需要先驗證 — 合理，因為使用者要先登入才能拿到 token
 - Swagger/OpenAPI 文件**只有在 dev/local 環境**才開放，正式環境（prod）會要求驗證，避免正式環境洩漏 API 文件
-- 其餘所有請求都必須通過身份驗證
+- 其餘所有請求都必須通過身份驗證，且角色需為 `ADMIN` 或 `USER`
 
 ## 4. 未驗證時的錯誤處理（第 78–87 行）
 
