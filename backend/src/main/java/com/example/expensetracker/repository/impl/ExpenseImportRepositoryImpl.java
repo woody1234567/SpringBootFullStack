@@ -45,7 +45,7 @@ public class ExpenseImportRepositoryImpl implements ExpenseImportRepository {
                 .withoutProcedureColumnMetaDataAccess()
                 .declareParameters(
                         new SqlParameter(SqlParamNames.USER_ID, Types.VARCHAR),
-                        new SqlParameter(SqlParamNames.FILE_NAME, Types.VARCHAR),
+                        new SqlParameter(SqlParamNames.FILE_NAME, Types.NVARCHAR),
                         new SqlParameter(SqlParamNames.ROWS, Types.ARRAY, IMPORT_ROW_TABLE_TYPE),
                         new SqlOutParameter(SqlParamNames.BATCH_ID, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.SUCCESS_COUNT, Types.NUMERIC),

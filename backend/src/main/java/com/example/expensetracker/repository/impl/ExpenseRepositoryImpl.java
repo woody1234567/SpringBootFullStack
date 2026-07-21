@@ -44,7 +44,7 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
                         new SqlParameter(SqlParamNames.AMOUNT, Types.NUMERIC),
                         new SqlParameter(SqlParamNames.CATEGORY_ID, Types.VARCHAR),
                         new SqlParameter(SqlParamNames.INVOICE_NUMBER, Types.VARCHAR),
-                        new SqlParameter(SqlParamNames.NOTE, Types.VARCHAR),
+                        new SqlParameter(SqlParamNames.NOTE, Types.NVARCHAR),
                         new SqlOutParameter(SqlParamNames.EXPENSE_ID, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.RESULT_CODE, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.RESULT_MESSAGE, Types.VARCHAR)
@@ -61,7 +61,7 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
                         new SqlParameter(SqlParamNames.AMOUNT, Types.NUMERIC),
                         new SqlParameter(SqlParamNames.CATEGORY_ID, Types.VARCHAR),
                         new SqlParameter(SqlParamNames.INVOICE_NUMBER, Types.VARCHAR),
-                        new SqlParameter(SqlParamNames.NOTE, Types.VARCHAR),
+                        new SqlParameter(SqlParamNames.NOTE, Types.NVARCHAR),
                         new SqlOutParameter(SqlParamNames.RESULT_CODE, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.RESULT_MESSAGE, Types.VARCHAR)
                 );

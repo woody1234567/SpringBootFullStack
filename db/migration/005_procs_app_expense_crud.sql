@@ -5,7 +5,7 @@ CREATE OR REPLACE PROCEDURE app_expense.SP_CREATE_EXPENSE (
     p_amount         IN  NUMBER,
     p_category_id    IN  VARCHAR2,
     p_invoice_number IN  VARCHAR2 DEFAULT NULL,
-    p_note           IN  VARCHAR2 DEFAULT NULL,
+    p_note           IN  NVARCHAR2 DEFAULT NULL,
     p_expense_id     OUT VARCHAR2,
     p_result_code    OUT VARCHAR2,
     p_result_message OUT VARCHAR2
@@ -69,7 +69,7 @@ CREATE OR REPLACE PROCEDURE app_expense.SP_UPDATE_EXPENSE (
     p_amount         IN  NUMBER,
     p_category_id    IN  VARCHAR2,
     p_invoice_number IN  VARCHAR2 DEFAULT NULL,
-    p_note           IN  VARCHAR2 DEFAULT NULL,
+    p_note           IN  NVARCHAR2 DEFAULT NULL,
     p_result_code    OUT VARCHAR2,
     p_result_message OUT VARCHAR2
 )

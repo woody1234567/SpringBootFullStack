@@ -6,9 +6,9 @@ CREATE OR REPLACE TYPE app_expense.TO_EXPENSE_IMPORT_ROW FORCE AS OBJECT (
     row_number      NUMBER(10),
     expense_date    DATE,
     amount          NUMBER(12,2),
-    category_name   VARCHAR2(100 CHAR),
+    category_name   NVARCHAR2(100),
     invoice_number  VARCHAR2(20 CHAR),
-    note            VARCHAR2(500 CHAR)
+    note            NVARCHAR2(500)
 );
 /
 

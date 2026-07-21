@@ -34,7 +34,7 @@ public class UserRepositoryImpl implements UserRepository {
                 .declareParameters(
                         new SqlParameter(SqlParamNames.EMAIL, Types.VARCHAR),
                         new SqlParameter(SqlParamNames.PASSWORD_HASH, Types.VARCHAR),
-                        new SqlParameter(SqlParamNames.DISPLAY_NAME, Types.VARCHAR),
+                        new SqlParameter(SqlParamNames.DISPLAY_NAME, Types.NVARCHAR),
                         new SqlOutParameter(SqlParamNames.USER_ID, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.RESULT_CODE, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.RESULT_MESSAGE, Types.VARCHAR)

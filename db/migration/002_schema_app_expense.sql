@@ -11,7 +11,7 @@ BEGIN
         EXECUTE IMMEDIATE '
             CREATE TABLE app_expense.TB_CATEGORY (
                 category_id     VARCHAR2(32 CHAR) DEFAULT RAWTOHEX(SYS_GUID()) NOT NULL,
-                name            VARCHAR2(100 CHAR) NOT NULL,
+                name            NVARCHAR2(100) NOT NULL,
                 is_active       NUMBER(1) DEFAULT 1 NOT NULL,
                 CONSTRAINT PK_CATEGORY PRIMARY KEY (category_id),
                 CONSTRAINT UK_CATEGORY UNIQUE (name),
@@ -51,7 +51,7 @@ BEGIN
                 expense_date    DATE NOT NULL,
                 amount          NUMBER(12,2) NOT NULL,
                 invoice_number  VARCHAR2(20 CHAR),
-                note            VARCHAR2(500 CHAR),
+                note            NVARCHAR2(500),
                 created_at      TIMESTAMP(3) DEFAULT SYS_EXTRACT_UTC(SYSTIMESTAMP) NOT NULL,
                 updated_at      TIMESTAMP(3) DEFAULT SYS_EXTRACT_UTC(SYSTIMESTAMP) NOT NULL,
                 CONSTRAINT PK_EXPENSE PRIMARY KEY (expense_id),
@@ -96,11 +96,11 @@ BEGIN
             CREATE TABLE app_expense.TB_IMPORT_BATCH (
                 batch_id        VARCHAR2(32 CHAR) DEFAULT RAWTOHEX(SYS_GUID()) NOT NULL,
                 user_id         VARCHAR2(32 CHAR) NOT NULL,
-                file_name       VARCHAR2(255 CHAR),
+                file_name       NVARCHAR2(255),
                 total_rows      NUMBER(10) NOT NULL,
                 success_rows    NUMBER(10) NOT NULL,
                 status          VARCHAR2(20 CHAR) NOT NULL,
-                error_summary   VARCHAR2(4000 CHAR),
+                error_summary   NVARCHAR2(2000),
                 created_at      TIMESTAMP(3) DEFAULT SYS_EXTRACT_UTC(SYSTIMESTAMP) NOT NULL,
                 CONSTRAINT PK_IMPORT_BATCH PRIMARY KEY (batch_id),
                 CONSTRAINT FK_IMPORT_BATCH FOREIGN KEY (user_id) REFERENCES app_user.TB_USER (user_id)

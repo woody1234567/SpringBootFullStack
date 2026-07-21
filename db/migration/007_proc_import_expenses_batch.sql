@@ -12,7 +12,7 @@
 -- table is cleared at the start of every call.
 CREATE OR REPLACE PROCEDURE app_expense.SP_IMPORT_EXPENSE_BATCH (
     p_user_id        IN  VARCHAR2,
-    p_file_name      IN  VARCHAR2 DEFAULT NULL,
+    p_file_name      IN  NVARCHAR2 DEFAULT NULL,
     p_rows           IN  app_expense.TT_EXPENSE_IMPORT_ROW,
     p_batch_id       OUT VARCHAR2,
     p_success_count  OUT NUMBER,
@@ -23,7 +23,7 @@ CREATE OR REPLACE PROCEDURE app_expense.SP_IMPORT_EXPENSE_BATCH (
 AS
     v_total_rows    PLS_INTEGER := 0;
     v_failed_rows   PLS_INTEGER := 0;
-    v_error_summary VARCHAR2(4000);
+    v_error_summary NVARCHAR2(2000);
 BEGIN
     IF p_rows IS NOT NULL THEN
         v_total_rows := p_rows.COUNT;

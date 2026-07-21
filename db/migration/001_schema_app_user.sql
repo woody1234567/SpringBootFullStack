@@ -12,7 +12,7 @@ BEGIN
                 user_id         VARCHAR2(32 CHAR) DEFAULT RAWTOHEX(SYS_GUID()) NOT NULL,
                 email           VARCHAR2(320 CHAR) NOT NULL,
                 password_hash   VARCHAR2(255 CHAR) NOT NULL,
-                display_name    VARCHAR2(100 CHAR),
+                display_name    NVARCHAR2(100),
                 is_active       NUMBER(1) DEFAULT 1 NOT NULL,
                 created_at      TIMESTAMP(3) DEFAULT SYS_EXTRACT_UTC(SYSTIMESTAMP) NOT NULL,
                 updated_at      TIMESTAMP(3) DEFAULT SYS_EXTRACT_UTC(SYSTIMESTAMP) NOT NULL,
