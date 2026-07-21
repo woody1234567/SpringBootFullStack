@@ -5,7 +5,7 @@ import { downloadTextFile } from '@/utils/downloadFile'
 const SAMPLE_CSV_CONTENT = [
   'expense_date,amount,category,invoice_number,note',
   '2026-07-01,150.00,餐飲,INV-0001,午餐',
-  '2026-07-02,899.50,旅費,INV-0002,住宿',
+  '2026-07-02,899.50,住宿,INV-0002,住宿',
   '2026-07-03,45.00,餐飲,INV-0003,咖啡',
 ].join('\r\n')
 
