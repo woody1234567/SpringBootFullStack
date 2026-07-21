@@ -88,6 +88,7 @@ Oracle schemas (users) group related objects, applied in order from `src/main/re
 | `006_proc_active_categories.sql` | `app_expense.SP_GET_ACTIVE_CATEGORY` |
 | `007_proc_import_expenses_batch.sql` | `app_expense.SP_IMPORT_EXPENSE_BATCH` — atomic CSV bulk import |
 | `008_grants_runtime_user.sql` | Grants `EXPENSE_TRACKER` the execute/select privileges needed by the backend and local database tools |
+| `009_recompile_search_expense.sql` | Recompiles `app_expense.SP_SEARCH_EXPENSE` with stable `ROW_NUMBER()` pagination |
 
 These scripts are **not** run automatically (no Flyway/Liquibase dependency is wired in) — apply
 them manually and in numeric order against your Oracle database before starting the app,
@@ -113,6 +114,77 @@ Stored procedures follow a consistent result convention: business outcomes are r
 `p_result_code` / `p_result_message` output parameters (`SUCCESS`, `VALIDATION_ERROR`, `NOT_FOUND`,
 `DUPLICATE`, `SYSTEM_ERROR`, ...), which the repository layer maps to Java exceptions and the
 global exception handler maps to HTTP status codes.
+
+## Updating Tables
+
+Database table changes are managed through the numbered SQL scripts in
+`src/main/resources/db/migration/`. Because this project does not wire in Flyway or Liquibase,
+apply each script manually with SQL*Plus, SQLcl, VSCode Database Client, or another Oracle client.
+
+For a clean local database that can be rebuilt, update the existing schema scripts and re-apply the
+full migration chain in order:
+
+```text
+000_setup_schemas.sql
+001_schema_app_user.sql
+002_schema_app_expense.sql
+003_types_app_expense.sql
+004_procs_app_user.sql
+005_procs_app_expense_crud.sql
+006_proc_active_categories.sql
+007_proc_import_expenses_batch.sql
+008_grants_runtime_user.sql
+009_recompile_search_expense.sql
+```
+
+For a database that already contains data or has been shared with others, do not rewrite a migration
+that has already been applied. Add the next numbered migration instead, for example
+`010_alter_expense_tables.sql`, and include the required `ALTER TABLE`, data backfill, index,
+constraint, procedure, and grant changes there.
+
+Table-change checklist:
+
+- Create tables under the owning schema (`app_user` or `app_expense`), not under the runtime user.
+- Use schema-qualified object names such as `app_expense.TB_EXPENSE`.
+- Follow Oracle naming rules: `TB_` tables, `PK_` primary keys, `FK_` foreign keys, `UK_` unique
+  keys, `IX_` indexes, and `SP_` stored procedures.
+- Store ID columns as `VARCHAR2(32 CHAR)` and generate new IDs with `RAWTOHEX(SYS_GUID())`.
+- Keep foreign-key columns the same type and length as the referenced ID column.
+- Put reusable reads behind stored procedures returning `SYS_REFCURSOR`; do not create or use
+  Oracle views for API reads in this project.
+- Update related stored procedures whenever a table column, validation rule, or returned result set
+  changes.
+- Update Java repository models, row mappers, DTOs, frontend TypeScript types, and API forms when
+  the database shape changes.
+- After creating or changing tables, procedures, or types, verify that the `EXPENSE_TRACKER`
+  runtime user has the needed `SELECT` or `EXECUTE` grants.
+- If Oracle reports `PLS-00905: object ... is invalid`, inspect the compile errors before changing
+  Java code:
+  ```sql
+  SELECT name, type, line, position, text
+  FROM all_errors
+  WHERE owner = 'APP_EXPENSE'
+    AND name = 'SP_SEARCH_EXPENSE'
+  ORDER BY sequence;
+  ```
+  Then re-run the migration that owns the procedure, or apply the next repair migration when the
+  database already contains data.
+- Re-run backend tests after code changes:
+  ```sh
+  mvn test
+  ```
+
+Minimal examples:
+
+```sql
+ALTER TABLE app_expense.TB_EXPENSE
+ADD merchant_name VARCHAR2(100 CHAR);
+
+CREATE INDEX app_expense.IX_EXPENSE_3
+ON app_expense.TB_EXPENSE (expense_date);
+
+GRANT SELECT ON app_expense.TB_EXPENSE TO expense_tracker;
+```
 
 ## Security
 
@@ -201,7 +273,8 @@ imports are required.
 
 1. **Provision Oracle Database** and create/apply the target schemas.
 2. **Apply the migration scripts** in `src/main/resources/db/migration/`, in numeric order
-   (000 → 008), against that database. Create `EXPENSE_TRACKER` before running `008`.
+   (000 → 009), against that database. Create `EXPENSE_TRACKER` before running `008`; see
+   [Updating Tables](#updating-tables) before changing an already-applied schema.
 3. **Configure the application**: copy `application-example.yml` to `application.yml` (or set the
    equivalent environment variables directly) and provide real `DB_USER`, `DB_PASSWORD`, and a
    strong, unique `JWT_SECRET`. Never commit real credentials.
