@@ -3,7 +3,7 @@ CREATE OR REPLACE PROCEDURE app_user.SP_CREATE_USER (
     p_email          IN  VARCHAR2,
     p_password_hash  IN  VARCHAR2,
     p_display_name   IN  VARCHAR2 DEFAULT NULL,
-    p_user_id        OUT NUMBER,
+    p_user_id        OUT VARCHAR2,
     p_result_code    OUT VARCHAR2,
     p_result_message OUT VARCHAR2
 )

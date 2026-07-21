@@ -1,7 +1,7 @@
 export interface CreateExpenseRequest {
   expenseDate: string
   amount: number
-  categoryId: number
+  categoryId: string
   invoiceNumber?: string | null
   note?: string | null
 }
@@ -11,7 +11,7 @@ export type UpdateExpenseRequest = CreateExpenseRequest
 export interface ExpenseSearchParams {
   dateFrom?: string
   dateTo?: string
-  categoryId?: number
+  categoryId?: string
   page: number
   pageSize: number
 }

@@ -10,6 +10,6 @@ public class CategoryRowMapper implements RowMapper<CategoryRow> {
 
     @Override
     public CategoryRow mapRow(ResultSet rs, int rowNum) throws SQLException {
-        return new CategoryRow(rs.getInt("category_id"), rs.getString("name"));
+        return new CategoryRow(rs.getString("category_id"), rs.getString("name"));
     }
 }

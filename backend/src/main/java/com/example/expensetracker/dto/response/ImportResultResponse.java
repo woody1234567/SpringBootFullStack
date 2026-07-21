@@ -3,7 +3,7 @@ package com.example.expensetracker.dto.response;
 import java.util.List;
 
 public record ImportResultResponse(
-        Long batchId,
+        String batchId,
         int totalRows,
         int successCount,
         String status,

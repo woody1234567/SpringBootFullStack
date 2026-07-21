@@ -32,7 +32,7 @@ interface AuthState {
 
 ```typescript
 export interface User {
-  userId: number
+  userId: string
   email: string
   displayName: string | null
 }

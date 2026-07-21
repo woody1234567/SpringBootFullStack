@@ -27,7 +27,7 @@ public class ExpenseService {
 
     private final ExpenseRepository expenseRepository;
 
-    public ExpenseResponse createExpense(Long userId, CreateExpenseRequest request) {
+    public ExpenseResponse createExpense(String userId, CreateExpenseRequest request) {
         CreateExpenseResult result = expenseRepository.createExpense(
                 userId, request.expenseDate(), request.amount(), request.categoryId(),
                 request.invoiceNumber(), request.note());
@@ -36,7 +36,7 @@ public class ExpenseService {
         return getExpense(userId, result.expenseId());
     }
 
-    public ExpenseResponse updateExpense(Long userId, Long expenseId, UpdateExpenseRequest request) {
+    public ExpenseResponse updateExpense(String userId, String expenseId, UpdateExpenseRequest request) {
         MutationResult result = expenseRepository.updateExpense(
                 expenseId, userId, request.expenseDate(), request.amount(), request.categoryId(),
                 request.invoiceNumber(), request.note());
@@ -45,12 +45,12 @@ public class ExpenseService {
         return getExpense(userId, expenseId);
     }
 
-    public void deleteExpense(Long userId, Long expenseId) {
+    public void deleteExpense(String userId, String expenseId) {
         MutationResult result = expenseRepository.deleteExpense(expenseId, userId);
         applyMutationOutcome(result.resultCode(), result.resultMessage());
     }
 
-    public ExpenseResponse getExpense(Long userId, Long expenseId) {
+    public ExpenseResponse getExpense(String userId, String expenseId) {
         GetExpenseResult result = expenseRepository.getExpenseDetail(expenseId, userId);
 
         ExpenseRow row = result.expense()
@@ -59,7 +59,7 @@ public class ExpenseService {
     }
 
     public PageResponse<ExpenseResponse> searchExpenses(
-            Long userId, LocalDate dateFrom, LocalDate dateTo, Integer categoryId, int page, int pageSize
+            String userId, LocalDate dateFrom, LocalDate dateTo, String categoryId, int page, int pageSize
     ) {
         SearchExpensesResult result = expenseRepository.searchExpenses(userId, dateFrom, dateTo, categoryId, page, pageSize);
 

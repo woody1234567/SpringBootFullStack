@@ -35,7 +35,7 @@ public class UserRepositoryImpl implements UserRepository {
                         new SqlParameter(SqlParamNames.EMAIL, Types.VARCHAR),
                         new SqlParameter(SqlParamNames.PASSWORD_HASH, Types.VARCHAR),
                         new SqlParameter(SqlParamNames.DISPLAY_NAME, Types.VARCHAR),
-                        new SqlOutParameter(SqlParamNames.USER_ID, Types.NUMERIC),
+                        new SqlOutParameter(SqlParamNames.USER_ID, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.RESULT_CODE, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.RESULT_MESSAGE, Types.VARCHAR)
                 );
@@ -64,9 +64,9 @@ public class UserRepositoryImpl implements UserRepository {
 
         String resultCode = (String) result.get(SqlParamNames.RESULT_CODE);
         String resultMessage = (String) result.get(SqlParamNames.RESULT_MESSAGE);
-        Number userId = (Number) result.get(SqlParamNames.USER_ID);
+        String userId = (String) result.get(SqlParamNames.USER_ID);
 
-        return new CreateUserResult(userId == null ? null : userId.longValue(), resultCode, resultMessage);
+        return new CreateUserResult(userId, resultCode, resultMessage);
     }
 
     @Override

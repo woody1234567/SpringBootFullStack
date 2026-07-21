@@ -9,7 +9,7 @@ BEGIN
     IF v_count = 0 THEN
         EXECUTE IMMEDIATE '
             CREATE TABLE app_user.TB_USER (
-                user_id         NUMBER(19) GENERATED ALWAYS AS IDENTITY,
+                user_id         VARCHAR2(32 CHAR) DEFAULT RAWTOHEX(SYS_GUID()) NOT NULL,
                 email           VARCHAR2(320 CHAR) NOT NULL,
                 password_hash   VARCHAR2(255 CHAR) NOT NULL,
                 display_name    VARCHAR2(100 CHAR),

@@ -11,17 +11,17 @@ import java.time.LocalDate;
 public interface ExpenseRepository {
 
     CreateExpenseResult createExpense(
-            Long userId, LocalDate expenseDate, BigDecimal amount, Integer categoryId,
+            String userId, LocalDate expenseDate, BigDecimal amount, String categoryId,
             String invoiceNumber, String note);
 
     MutationResult updateExpense(
-            Long expenseId, Long userId, LocalDate expenseDate, BigDecimal amount, Integer categoryId,
+            String expenseId, String userId, LocalDate expenseDate, BigDecimal amount, String categoryId,
             String invoiceNumber, String note);
 
-    MutationResult deleteExpense(Long expenseId, Long userId);
+    MutationResult deleteExpense(String expenseId, String userId);
 
-    GetExpenseResult getExpenseDetail(Long expenseId, Long userId);
+    GetExpenseResult getExpenseDetail(String expenseId, String userId);
 
     SearchExpensesResult searchExpenses(
-            Long userId, LocalDate dateFrom, LocalDate dateTo, Integer categoryId, int page, int pageSize);
+            String userId, LocalDate dateFrom, LocalDate dateTo, String categoryId, int page, int pageSize);
 }

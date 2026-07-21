@@ -7,5 +7,5 @@ import java.util.List;
 
 public interface ExpenseImportRepository {
 
-    ImportBatchResult importBatch(Long userId, String fileName, List<ParsedExpenseImportRow> rows);
+    ImportBatchResult importBatch(String userId, String fileName, List<ParsedExpenseImportRow> rows);
 }

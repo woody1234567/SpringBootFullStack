@@ -10,7 +10,7 @@ BEGIN
     IF v_count = 0 THEN
         EXECUTE IMMEDIATE '
             CREATE TABLE app_expense.TB_CATEGORY (
-                category_id     NUMBER(10) GENERATED ALWAYS AS IDENTITY,
+                category_id     VARCHAR2(32 CHAR) DEFAULT RAWTOHEX(SYS_GUID()) NOT NULL,
                 name            VARCHAR2(100 CHAR) NOT NULL,
                 is_active       NUMBER(1) DEFAULT 1 NOT NULL,
                 CONSTRAINT PK_CATEGORY PRIMARY KEY (category_id),
@@ -45,9 +45,9 @@ BEGIN
     IF v_count = 0 THEN
         EXECUTE IMMEDIATE '
             CREATE TABLE app_expense.TB_EXPENSE (
-                expense_id      NUMBER(19) GENERATED ALWAYS AS IDENTITY,
-                user_id         NUMBER(19) NOT NULL,
-                category_id     NUMBER(10) NOT NULL,
+                expense_id      VARCHAR2(32 CHAR) DEFAULT RAWTOHEX(SYS_GUID()) NOT NULL,
+                user_id         VARCHAR2(32 CHAR) NOT NULL,
+                category_id     VARCHAR2(32 CHAR) NOT NULL,
                 expense_date    DATE NOT NULL,
                 amount          NUMBER(12,2) NOT NULL,
                 invoice_number  VARCHAR2(20 CHAR),
@@ -94,8 +94,8 @@ BEGIN
     IF v_count = 0 THEN
         EXECUTE IMMEDIATE '
             CREATE TABLE app_expense.TB_IMPORT_BATCH (
-                batch_id        NUMBER(19) GENERATED ALWAYS AS IDENTITY,
-                user_id         NUMBER(19) NOT NULL,
+                batch_id        VARCHAR2(32 CHAR) DEFAULT RAWTOHEX(SYS_GUID()) NOT NULL,
+                user_id         VARCHAR2(32 CHAR) NOT NULL,
                 file_name       VARCHAR2(255 CHAR),
                 total_rows      NUMBER(10) NOT NULL,
                 success_rows    NUMBER(10) NOT NULL,

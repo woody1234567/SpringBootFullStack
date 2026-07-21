@@ -56,7 +56,7 @@ watch(
 const rules: ViewUiFormRules = {
   expenseDate: [{ required: true, message: '請選擇日期', trigger: 'change' }],
   amount: [{ required: true, type: 'number', message: '請輸入金額', trigger: 'blur' }],
-  categoryId: [{ required: true, type: 'number', message: '請選擇分類', trigger: 'change' }],
+  categoryId: [{ required: true, type: 'string', message: '請選擇分類', trigger: 'change' }],
 }
 
 const handleOk = () => {

@@ -11,10 +11,10 @@
 -- survive the audit COMMIT and remain fetchable through the ref cursor; the
 -- table is cleared at the start of every call.
 CREATE OR REPLACE PROCEDURE app_expense.SP_IMPORT_EXPENSE_BATCH (
-    p_user_id        IN  NUMBER,
+    p_user_id        IN  VARCHAR2,
     p_file_name      IN  VARCHAR2 DEFAULT NULL,
     p_rows           IN  app_expense.TT_EXPENSE_IMPORT_ROW,
-    p_batch_id       OUT NUMBER,
+    p_batch_id       OUT VARCHAR2,
     p_success_count  OUT NUMBER,
     p_result_code    OUT VARCHAR2,
     p_result_message OUT VARCHAR2,

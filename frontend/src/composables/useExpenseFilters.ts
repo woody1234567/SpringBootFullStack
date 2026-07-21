@@ -3,7 +3,7 @@ import { ref } from 'vue'
 export function useExpenseFilters() {
   const dateFrom = ref<Date | null>(null)
   const dateTo = ref<Date | null>(null)
-  const categoryId = ref<number | null>(null)
+  const categoryId = ref<string | null>(null)
 
   const reset = () => {
     dateFrom.value = null

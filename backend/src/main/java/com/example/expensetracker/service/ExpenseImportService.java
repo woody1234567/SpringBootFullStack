@@ -32,7 +32,7 @@ public class ExpenseImportService {
      * safety net, not because Java needs to coordinate multiple writes.
      */
     @Transactional
-    public ImportResultResponse importExpenses(Long userId, MultipartFile file) {
+    public ImportResultResponse importExpenses(String userId, MultipartFile file) {
         List<ParsedExpenseImportRow> rows = csvExpenseParser.parse(file);
         ImportBatchResult result = expenseImportRepository.importBatch(userId, file.getOriginalFilename(), rows);
 

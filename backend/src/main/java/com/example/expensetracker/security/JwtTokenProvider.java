@@ -11,11 +11,13 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 @Component
 public class JwtTokenProvider {
 
     private static final String CLAIM_EMAIL = "email";
+    private static final Pattern GUID_PATTERN = Pattern.compile("^[0-9A-F]{32}$");
 
     private final SecretKey signingKey;
     private final long expirationMs;
@@ -28,12 +30,12 @@ public class JwtTokenProvider {
         this.expirationMs = expirationMs;
     }
 
-    public String generateToken(Long userId, String email) {
+    public String generateToken(String userId, String email) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + expirationMs);
 
         return Jwts.builder()
-                .subject(String.valueOf(userId))
+                .subject(userId)
                 .claim(CLAIM_EMAIL, email)
                 .issuedAt(now)
                 .expiration(expiry)
@@ -49,7 +51,11 @@ public class JwtTokenProvider {
                     .parseSignedClaims(token)
                     .getPayload();
 
-            Long userId = Long.valueOf(claims.getSubject());
+            String userId = claims.getSubject();
+            if (userId == null || !GUID_PATTERN.matcher(userId).matches()) {
+                return Optional.empty();
+            }
+
             String email = claims.get(CLAIM_EMAIL, String.class);
             return Optional.of(new AuthenticatedUser(userId, email));
         } catch (JwtException | IllegalArgumentException ex) {

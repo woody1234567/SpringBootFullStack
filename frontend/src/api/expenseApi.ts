@@ -8,17 +8,17 @@ export const createExpense = (payload: CreateExpenseRequest): Promise<ApiRespons
 }
 
 export const updateExpense = (
-  expenseId: number,
+  expenseId: string,
   payload: UpdateExpenseRequest,
 ): Promise<ApiResponse<Expense>> => {
   return httpClient.put(`/api/expenses/${expenseId}`, payload).then((res) => res.data)
 }
 
-export const deleteExpense = (expenseId: number): Promise<ApiResponse<void>> => {
+export const deleteExpense = (expenseId: string): Promise<ApiResponse<void>> => {
   return httpClient.delete(`/api/expenses/${expenseId}`).then((res) => res.data)
 }
 
-export const getExpense = (expenseId: number): Promise<ApiResponse<Expense>> => {
+export const getExpense = (expenseId: string): Promise<ApiResponse<Expense>> => {
   return httpClient.get(`/api/expenses/${expenseId}`).then((res) => res.data)
 }
 

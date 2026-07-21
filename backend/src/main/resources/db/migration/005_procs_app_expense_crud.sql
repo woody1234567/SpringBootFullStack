@@ -1,12 +1,12 @@
 -- app_expense.SP_CREATE_EXPENSE: inserts a single expense record owned by p_user_id.
 CREATE OR REPLACE PROCEDURE app_expense.SP_CREATE_EXPENSE (
-    p_user_id        IN  NUMBER,
+    p_user_id        IN  VARCHAR2,
     p_expense_date   IN  DATE,
     p_amount         IN  NUMBER,
-    p_category_id    IN  NUMBER,
+    p_category_id    IN  VARCHAR2,
     p_invoice_number IN  VARCHAR2 DEFAULT NULL,
     p_note           IN  VARCHAR2 DEFAULT NULL,
-    p_expense_id     OUT NUMBER,
+    p_expense_id     OUT VARCHAR2,
     p_result_code    OUT VARCHAR2,
     p_result_message OUT VARCHAR2
 )
@@ -63,11 +63,11 @@ END SP_CREATE_EXPENSE;
 
 -- app_expense.SP_UPDATE_EXPENSE: updates an expense, enforcing ownership by p_user_id.
 CREATE OR REPLACE PROCEDURE app_expense.SP_UPDATE_EXPENSE (
-    p_expense_id     IN  NUMBER,
-    p_user_id        IN  NUMBER,
+    p_expense_id     IN  VARCHAR2,
+    p_user_id        IN  VARCHAR2,
     p_expense_date   IN  DATE,
     p_amount         IN  NUMBER,
-    p_category_id    IN  NUMBER,
+    p_category_id    IN  VARCHAR2,
     p_invoice_number IN  VARCHAR2 DEFAULT NULL,
     p_note           IN  VARCHAR2 DEFAULT NULL,
     p_result_code    OUT VARCHAR2,
@@ -137,8 +137,8 @@ END SP_UPDATE_EXPENSE;
 
 -- app_expense.SP_DELETE_EXPENSE: deletes an expense, enforcing ownership by p_user_id.
 CREATE OR REPLACE PROCEDURE app_expense.SP_DELETE_EXPENSE (
-    p_expense_id     IN  NUMBER,
-    p_user_id        IN  NUMBER,
+    p_expense_id     IN  VARCHAR2,
+    p_user_id        IN  VARCHAR2,
     p_result_code    OUT VARCHAR2,
     p_result_message OUT VARCHAR2
 )
@@ -170,8 +170,8 @@ END SP_DELETE_EXPENSE;
 
 -- app_expense.SP_GET_EXPENSE_DETAIL: fetches a single expense, enforcing ownership by p_user_id.
 CREATE OR REPLACE PROCEDURE app_expense.SP_GET_EXPENSE_DETAIL (
-    p_expense_id     IN  NUMBER,
-    p_user_id        IN  NUMBER,
+    p_expense_id     IN  VARCHAR2,
+    p_user_id        IN  VARCHAR2,
     p_result_code    OUT VARCHAR2,
     p_result_message OUT VARCHAR2,
     p_expense_cursor OUT SYS_REFCURSOR
@@ -214,10 +214,10 @@ END SP_GET_EXPENSE_DETAIL;
 
 -- app_expense.SP_SEARCH_EXPENSE: paginated, filterable listing scoped to p_user_id.
 CREATE OR REPLACE PROCEDURE app_expense.SP_SEARCH_EXPENSE (
-    p_user_id        IN  NUMBER,
+    p_user_id        IN  VARCHAR2,
     p_date_from      IN  DATE DEFAULT NULL,
     p_date_to        IN  DATE DEFAULT NULL,
-    p_category_id    IN  NUMBER DEFAULT NULL,
+    p_category_id    IN  VARCHAR2 DEFAULT NULL,
     p_page           IN  NUMBER DEFAULT 1,
     p_page_size      IN  NUMBER DEFAULT 20,
     p_total_count    OUT NUMBER,

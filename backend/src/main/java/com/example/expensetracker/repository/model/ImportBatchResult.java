@@ -3,7 +3,7 @@ package com.example.expensetracker.repository.model;
 import java.util.List;
 
 public record ImportBatchResult(
-        Long batchId,
+        String batchId,
         int successCount,
         String resultCode,
         String resultMessage,

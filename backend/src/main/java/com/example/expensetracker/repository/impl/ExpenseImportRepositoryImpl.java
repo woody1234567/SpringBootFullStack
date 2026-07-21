@@ -44,10 +44,10 @@ public class ExpenseImportRepositoryImpl implements ExpenseImportRepository {
                 .withProcedureName("SP_IMPORT_EXPENSE_BATCH")
                 .withoutProcedureColumnMetaDataAccess()
                 .declareParameters(
-                        new SqlParameter(SqlParamNames.USER_ID, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.USER_ID, Types.VARCHAR),
                         new SqlParameter(SqlParamNames.FILE_NAME, Types.VARCHAR),
                         new SqlParameter(SqlParamNames.ROWS, Types.ARRAY, IMPORT_ROW_TABLE_TYPE),
-                        new SqlOutParameter(SqlParamNames.BATCH_ID, Types.NUMERIC),
+                        new SqlOutParameter(SqlParamNames.BATCH_ID, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.SUCCESS_COUNT, Types.NUMERIC),
                         new SqlOutParameter(SqlParamNames.RESULT_CODE, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.RESULT_MESSAGE, Types.VARCHAR),
@@ -57,7 +57,7 @@ public class ExpenseImportRepositoryImpl implements ExpenseImportRepository {
 
     @Override
     @LoggedOperation("app_expense.SP_IMPORT_EXPENSE_BATCH")
-    public ImportBatchResult importBatch(Long userId, String fileName, List<ParsedExpenseImportRow> rows) {
+    public ImportBatchResult importBatch(String userId, String fileName, List<ParsedExpenseImportRow> rows) {
         Map<String, Object> params = new HashMap<>();
         params.put(SqlParamNames.USER_ID, userId);
         params.put(SqlParamNames.FILE_NAME, fileName);
@@ -66,14 +66,14 @@ public class ExpenseImportRepositoryImpl implements ExpenseImportRepository {
         Map<String, Object> result = importBatchCall.execute(params);
 
         String resultCode = (String) result.get(SqlParamNames.RESULT_CODE);
-        Number batchId = (Number) result.get(SqlParamNames.BATCH_ID);
+        String batchId = (String) result.get(SqlParamNames.BATCH_ID);
         Number successCount = (Number) result.get(SqlParamNames.SUCCESS_COUNT);
 
         @SuppressWarnings("unchecked")
         List<ImportRowFailure> failedRows = (List<ImportRowFailure>) result.get(SqlParamNames.FAILED_CURSOR);
 
         return new ImportBatchResult(
-                batchId == null ? null : batchId.longValue(),
+                batchId,
                 successCount == null ? 0 : successCount.intValue(),
                 resultCode,
                 (String) result.get(SqlParamNames.RESULT_MESSAGE),

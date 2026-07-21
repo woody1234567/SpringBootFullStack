@@ -9,7 +9,7 @@ defineProps<Props>()
 
 const dateFrom = defineModel<Date | null>('dateFrom', { default: null })
 const dateTo = defineModel<Date | null>('dateTo', { default: null })
-const categoryId = defineModel<number | null>('categoryId', { default: null })
+const categoryId = defineModel<string | null>('categoryId', { default: null })
 
 const emit = defineEmits<{
   search: []

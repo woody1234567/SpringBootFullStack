@@ -1,4 +1,4 @@
 package com.example.expensetracker.repository.model;
 
-public record CategoryRow(Integer categoryId, String name) {
+public record CategoryRow(String categoryId, String name) {
 }

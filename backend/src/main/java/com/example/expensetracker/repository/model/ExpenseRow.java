@@ -5,10 +5,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 public record ExpenseRow(
-        Long expenseId,
+        String expenseId,
         LocalDate expenseDate,
         BigDecimal amount,
-        Integer categoryId,
+        String categoryId,
         String categoryName,
         String invoiceNumber,
         String note,

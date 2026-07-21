@@ -45,7 +45,7 @@ public class ExpenseController {
     @PutMapping("/{expenseId}")
     public ResponseEntity<ApiResponse<ExpenseResponse>> update(
             @AuthenticationPrincipal AuthenticatedUser user,
-            @PathVariable Long expenseId,
+            @PathVariable String expenseId,
             @Valid @RequestBody UpdateExpenseRequest request
     ) {
         ExpenseResponse response = expenseService.updateExpense(user.userId(), expenseId, request);
@@ -55,7 +55,7 @@ public class ExpenseController {
     @DeleteMapping("/{expenseId}")
     public ResponseEntity<ApiResponse<Void>> delete(
             @AuthenticationPrincipal AuthenticatedUser user,
-            @PathVariable Long expenseId
+            @PathVariable String expenseId
     ) {
         expenseService.deleteExpense(user.userId(), expenseId);
         return ResponseEntity.ok(ApiResponse.success("Expense deleted successfully", null));
@@ -64,7 +64,7 @@ public class ExpenseController {
     @GetMapping("/{expenseId}")
     public ResponseEntity<ApiResponse<ExpenseResponse>> getDetail(
             @AuthenticationPrincipal AuthenticatedUser user,
-            @PathVariable Long expenseId
+            @PathVariable String expenseId
     ) {
         ExpenseResponse response = expenseService.getExpense(user.userId(), expenseId);
         return ResponseEntity.ok(ApiResponse.success("Expense retrieved successfully", response));
@@ -75,7 +75,7 @@ public class ExpenseController {
             @AuthenticationPrincipal AuthenticatedUser user,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
-            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) String categoryId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize
     ) {

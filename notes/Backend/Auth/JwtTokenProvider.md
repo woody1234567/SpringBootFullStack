@@ -32,12 +32,12 @@ public class JwtTokenProvider {
 ## 2. 簽發 Token：`generateToken`（第 31–42 行）
 
 ```java
-public String generateToken(Long userId, String email) {
+public String generateToken(String userId, String email) {
     Date now = new Date();
     Date expiry = new Date(now.getTime() + expirationMs);
 
     return Jwts.builder()
-            .subject(String.valueOf(userId))
+            .subject(userId)
             .claim(CLAIM_EMAIL, email)
             .issuedAt(now)
             .expiration(expiry)
@@ -46,7 +46,7 @@ public String generateToken(Long userId, String email) {
 }
 ```
 
-- `subject`：放 `userId`（轉字串），JWT 標準欄位，代表這個 token 屬於誰
+- `subject`：放字串 GUID `userId`，JWT 標準欄位，代表這個 token 屬於誰
 - `claim(CLAIM_EMAIL, email)`：自訂欄位，額外把 email 帶進 token，讓後續驗證時不用再查資料庫就能拿到 email
 - `issuedAt` / `expiration`：簽發時間與到期時間，到期時間 = 簽發時間 + `expirationMs`
 - `signWith(signingKey)`：用 HMAC 密鑰簽章，確保 token 沒有被竄改
@@ -65,7 +65,7 @@ public Optional<AuthenticatedUser> parseToken(String token) {
                 .parseSignedClaims(token)
                 .getPayload();
 
-        Long userId = Long.valueOf(claims.getSubject());
+        String userId = claims.getSubject();
         String email = claims.get(CLAIM_EMAIL, String.class);
         return Optional.of(new AuthenticatedUser(userId, email));
     } catch (JwtException | IllegalArgumentException ex) {
@@ -75,8 +75,8 @@ public Optional<AuthenticatedUser> parseToken(String token) {
 ```
 
 - `Jwts.parser().verifyWith(signingKey).build().parseSignedClaims(token)`：用同一把簽章密鑰驗證 token 的簽章與格式，並解析出 payload（`Claims`）
-- 從 claims 還原 `userId`（`subject`）與 `email`（自訂 claim），組成 `AuthenticatedUser(userId, email)` record 回傳
-- **關鍵設計**：回傳型別是 `Optional<AuthenticatedUser>` 而不是直接回傳 `Claims` 或拋例外。任何驗證失敗的情境（簽章不符、token 過期、格式錯誤 → `JwtException`；`subject` 不是合法數字 → `IllegalArgumentException`）都被 `catch` 統一吞下，回傳 `Optional.empty()`
+- 從 claims 還原字串 GUID `userId`（`subject`）與 `email`（自訂 claim），組成 `AuthenticatedUser(userId, email)` record 回傳
+- **關鍵設計**：回傳型別是 `Optional<AuthenticatedUser>` 而不是直接回傳 `Claims` 或拋例外。任何驗證失敗的情境（簽章不符、token 過期、格式錯誤 → `JwtException`；subject 缺失或非法 → `IllegalArgumentException`）都被 `catch` 統一吞下，回傳 `Optional.empty()`
 - 這樣設計的好處：呼叫端（`JwtAuthenticationFilter`）不需要處理例外，只要用 `Optional` 鏈式操作（`flatMap` / `ifPresent`）即可，也避免把 JWT 函式庫的例外細節（例如過期訊息）意外洩漏到上層或回應給前端
 
 ## 密鑰與設定管理

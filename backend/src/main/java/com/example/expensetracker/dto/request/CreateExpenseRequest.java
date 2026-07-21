@@ -2,6 +2,7 @@ package com.example.expensetracker.dto.request;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
@@ -17,7 +18,8 @@ public record CreateExpenseRequest(
         BigDecimal amount,
 
         @NotNull(message = "Category is required")
-        Integer categoryId,
+        @Pattern(regexp = "^[0-9A-F]{32}$", message = "Category ID must be a 32-character uppercase GUID")
+        String categoryId,
 
         @Size(max = 20, message = "Invoice number must be at most 20 characters")
         String invoiceNumber,

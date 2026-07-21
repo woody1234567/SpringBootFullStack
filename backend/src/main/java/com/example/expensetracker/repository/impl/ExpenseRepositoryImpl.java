@@ -39,13 +39,13 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
                 .withProcedureName("SP_CREATE_EXPENSE")
                 .withoutProcedureColumnMetaDataAccess()
                 .declareParameters(
-                        new SqlParameter(SqlParamNames.USER_ID, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.USER_ID, Types.VARCHAR),
                         new SqlParameter(SqlParamNames.EXPENSE_DATE, Types.DATE),
                         new SqlParameter(SqlParamNames.AMOUNT, Types.NUMERIC),
-                        new SqlParameter(SqlParamNames.CATEGORY_ID, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.CATEGORY_ID, Types.VARCHAR),
                         new SqlParameter(SqlParamNames.INVOICE_NUMBER, Types.VARCHAR),
                         new SqlParameter(SqlParamNames.NOTE, Types.VARCHAR),
-                        new SqlOutParameter(SqlParamNames.EXPENSE_ID, Types.NUMERIC),
+                        new SqlOutParameter(SqlParamNames.EXPENSE_ID, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.RESULT_CODE, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.RESULT_MESSAGE, Types.VARCHAR)
                 );
@@ -55,11 +55,11 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
                 .withProcedureName("SP_UPDATE_EXPENSE")
                 .withoutProcedureColumnMetaDataAccess()
                 .declareParameters(
-                        new SqlParameter(SqlParamNames.EXPENSE_ID, Types.NUMERIC),
-                        new SqlParameter(SqlParamNames.USER_ID, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.EXPENSE_ID, Types.VARCHAR),
+                        new SqlParameter(SqlParamNames.USER_ID, Types.VARCHAR),
                         new SqlParameter(SqlParamNames.EXPENSE_DATE, Types.DATE),
                         new SqlParameter(SqlParamNames.AMOUNT, Types.NUMERIC),
-                        new SqlParameter(SqlParamNames.CATEGORY_ID, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.CATEGORY_ID, Types.VARCHAR),
                         new SqlParameter(SqlParamNames.INVOICE_NUMBER, Types.VARCHAR),
                         new SqlParameter(SqlParamNames.NOTE, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.RESULT_CODE, Types.VARCHAR),
@@ -71,8 +71,8 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
                 .withProcedureName("SP_DELETE_EXPENSE")
                 .withoutProcedureColumnMetaDataAccess()
                 .declareParameters(
-                        new SqlParameter(SqlParamNames.EXPENSE_ID, Types.NUMERIC),
-                        new SqlParameter(SqlParamNames.USER_ID, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.EXPENSE_ID, Types.VARCHAR),
+                        new SqlParameter(SqlParamNames.USER_ID, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.RESULT_CODE, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.RESULT_MESSAGE, Types.VARCHAR)
                 );
@@ -82,8 +82,8 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
                 .withProcedureName("SP_GET_EXPENSE_DETAIL")
                 .withoutProcedureColumnMetaDataAccess()
                 .declareParameters(
-                        new SqlParameter(SqlParamNames.EXPENSE_ID, Types.NUMERIC),
-                        new SqlParameter(SqlParamNames.USER_ID, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.EXPENSE_ID, Types.VARCHAR),
+                        new SqlParameter(SqlParamNames.USER_ID, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.RESULT_CODE, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.RESULT_MESSAGE, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.EXPENSE_CURSOR, OracleTypes.CURSOR, new ExpenseRowMapper())
@@ -94,10 +94,10 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
                 .withProcedureName("SP_SEARCH_EXPENSE")
                 .withoutProcedureColumnMetaDataAccess()
                 .declareParameters(
-                        new SqlParameter(SqlParamNames.USER_ID, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.USER_ID, Types.VARCHAR),
                         new SqlParameter(SqlParamNames.DATE_FROM, Types.DATE),
                         new SqlParameter(SqlParamNames.DATE_TO, Types.DATE),
-                        new SqlParameter(SqlParamNames.CATEGORY_ID, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.CATEGORY_ID, Types.VARCHAR),
                         new SqlParameter(SqlParamNames.PAGE, Types.NUMERIC),
                         new SqlParameter(SqlParamNames.PAGE_SIZE, Types.NUMERIC),
                         new SqlOutParameter(SqlParamNames.TOTAL_COUNT, Types.NUMERIC),
@@ -110,7 +110,7 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
     @Override
     @LoggedOperation("app_expense.SP_CREATE_EXPENSE")
     public CreateExpenseResult createExpense(
-            Long userId, LocalDate expenseDate, BigDecimal amount, Integer categoryId,
+            String userId, LocalDate expenseDate, BigDecimal amount, String categoryId,
             String invoiceNumber, String note
     ) {
         Map<String, Object> params = new HashMap<>();
@@ -122,12 +122,12 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
         params.put(SqlParamNames.NOTE, note);
 
         Map<String, Object> result = createExpenseCall.execute(params);
-        Number expenseId = (Number) result.get(SqlParamNames.EXPENSE_ID);
+        String expenseId = (String) result.get(SqlParamNames.EXPENSE_ID);
 
         String resultCode = (String) result.get(SqlParamNames.RESULT_CODE);
 
         return new CreateExpenseResult(
-                expenseId == null ? null : expenseId.longValue(),
+                expenseId,
                 resultCode,
                 (String) result.get(SqlParamNames.RESULT_MESSAGE));
     }
@@ -135,7 +135,7 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
     @Override
     @LoggedOperation("app_expense.SP_UPDATE_EXPENSE")
     public MutationResult updateExpense(
-            Long expenseId, Long userId, LocalDate expenseDate, BigDecimal amount, Integer categoryId,
+            String expenseId, String userId, LocalDate expenseDate, BigDecimal amount, String categoryId,
             String invoiceNumber, String note
     ) {
         Map<String, Object> params = new HashMap<>();
@@ -155,7 +155,7 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
 
     @Override
     @LoggedOperation("app_expense.SP_DELETE_EXPENSE")
-    public MutationResult deleteExpense(Long expenseId, Long userId) {
+    public MutationResult deleteExpense(String expenseId, String userId) {
         Map<String, Object> params = Map.of(
                 SqlParamNames.EXPENSE_ID, expenseId,
                 SqlParamNames.USER_ID, userId);
@@ -168,7 +168,7 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
 
     @Override
     @LoggedOperation("app_expense.SP_GET_EXPENSE_DETAIL")
-    public GetExpenseResult getExpenseDetail(Long expenseId, Long userId) {
+    public GetExpenseResult getExpenseDetail(String expenseId, String userId) {
         Map<String, Object> params = Map.of(
                 SqlParamNames.EXPENSE_ID, expenseId,
                 SqlParamNames.USER_ID, userId);
@@ -186,7 +186,7 @@ public class ExpenseRepositoryImpl implements ExpenseRepository {
     @Override
     @LoggedOperation("app_expense.SP_SEARCH_EXPENSE")
     public SearchExpensesResult searchExpenses(
-            Long userId, LocalDate dateFrom, LocalDate dateTo, Integer categoryId, int page, int pageSize
+            String userId, LocalDate dateFrom, LocalDate dateTo, String categoryId, int page, int pageSize
     ) {
         Map<String, Object> params = new HashMap<>();
         params.put(SqlParamNames.USER_ID, userId);

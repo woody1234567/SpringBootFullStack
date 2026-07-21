@@ -4,7 +4,7 @@ export interface ImportRowError {
 }
 
 export interface ImportResultData {
-  batchId: number
+  batchId: string
   totalRows: number
   successCount: number
   status: 'SUCCESS' | 'FAILED'

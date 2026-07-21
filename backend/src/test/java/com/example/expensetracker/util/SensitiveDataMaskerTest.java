@@ -8,7 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class SensitiveDataMaskerTest {
 
-    private record LoginResult(String token, Long userId) {
+    private record LoginResult(String token, String userId) {
     }
 
     @Test
@@ -29,13 +29,15 @@ class SensitiveDataMaskerTest {
 
     @Test
     void masksSensitiveRecordComponentButKeepsSiblingsVisible() {
-        LoginResult result = new LoginResult("eyJhbGciOiJIUzI1NiJ9.payload.sig", 42L);
+        LoginResult result = new LoginResult(
+                "eyJhbGciOiJIUzI1NiJ9.payload.sig",
+                "A1B2C3D4E5F60718293A4B5C6D7E8F90");
 
         String described = SensitiveDataMasker.describeResult(result);
 
         assertThat(described)
                 .contains("token=***")
-                .contains("userId=42")
+                .contains("userId=A1B2C3D4E5F60718293A4B5C6D7E8F90")
                 .doesNotContain("eyJhbGciOiJIUzI1NiJ9");
     }
 

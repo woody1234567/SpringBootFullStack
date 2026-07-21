@@ -1,7 +1,7 @@
 package com.example.expensetracker.repository.model;
 
 public record UserRow(
-        Long userId,
+        String userId,
         String email,
         String passwordHash,
         String displayName,
