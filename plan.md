@@ -107,7 +107,7 @@ Java does only safe type coercion (string → date/decimal); anything unparsable
 
 ### DDL script organization
 Plain numbered idempotent `CREATE OR ALTER` scripts under `backend/src/main/resources/db/migration/` (no Flyway/Liquibase — unjustified new dependency given the DB is user-managed and pre-existing):
-- `001_schema_app_user.sql`, `002_schema_app_expense.sql` (tables + seed categories), `003_types_app_expense.sql` (TVP type), `004_procs_app_user.sql`, `005_procs_app_expense_crud.sql`, `006_view_active_categories.sql`, `007_proc_import_expenses_batch.sql`
+- `001_schema_app_user.sql`, `002_schema_app_expense.sql` (tables + seed categories), `003_types_app_expense.sql` (TVP type), `004_procs_app_user.sql`, `005_procs_app_expense_crud.sql`, `006_proc_active_categories.sql`, `007_proc_import_expenses_batch.sql`
 
 ---
 

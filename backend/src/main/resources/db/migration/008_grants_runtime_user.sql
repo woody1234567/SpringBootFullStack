@@ -2,7 +2,7 @@
 --
 -- Run as a DBA/admin account after scripts 000-007. The runtime account is kept
 -- separate from the object-owning schemas: APP_USER and APP_EXPENSE own tables,
--- views, types, and procedures; EXPENSE_TRACKER only connects and executes the
+-- types, and procedures; EXPENSE_TRACKER only connects and executes the
 -- approved API surface.
 --
 -- If the user does not exist yet, create it first:
@@ -36,7 +36,6 @@ BEGIN
     EXECUTE IMMEDIATE 'GRANT SELECT ON app_expense.TB_EXPENSE TO ' || v_runtime_user;
     EXECUTE IMMEDIATE 'GRANT SELECT ON app_expense.TB_IMPORT_BATCH TO ' || v_runtime_user;
     EXECUTE IMMEDIATE 'GRANT SELECT ON app_expense.TB_TMP_IMPORT_FAILED_ROW TO ' || v_runtime_user;
-    EXECUTE IMMEDIATE 'GRANT SELECT ON app_expense.VW_ACTIVE_CATEGORY TO ' || v_runtime_user;
 
     EXECUTE IMMEDIATE 'GRANT EXECUTE ON app_expense.TO_EXPENSE_IMPORT_ROW TO ' || v_runtime_user;
     EXECUTE IMMEDIATE 'GRANT EXECUTE ON app_expense.TT_EXPENSE_IMPORT_ROW TO ' || v_runtime_user;
@@ -45,6 +44,7 @@ BEGIN
     EXECUTE IMMEDIATE 'GRANT EXECUTE ON app_expense.SP_DELETE_EXPENSE TO ' || v_runtime_user;
     EXECUTE IMMEDIATE 'GRANT EXECUTE ON app_expense.SP_GET_EXPENSE_DETAIL TO ' || v_runtime_user;
     EXECUTE IMMEDIATE 'GRANT EXECUTE ON app_expense.SP_SEARCH_EXPENSE TO ' || v_runtime_user;
+    EXECUTE IMMEDIATE 'GRANT EXECUTE ON app_expense.SP_GET_ACTIVE_CATEGORY TO ' || v_runtime_user;
     EXECUTE IMMEDIATE 'GRANT EXECUTE ON app_expense.SP_IMPORT_EXPENSE_BATCH TO ' || v_runtime_user;
 END;
 /

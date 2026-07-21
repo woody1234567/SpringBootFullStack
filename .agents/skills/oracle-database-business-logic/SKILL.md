@@ -1,6 +1,6 @@
 ---
 name: oracle-database-business-logic
-description: Oracle-centric database business logic for this project. Use this skill whenever creating or modifying Oracle DDL, PL/SQL packages, stored procedures, functions, views, table functions, result-code conventions, exception handling, transaction ownership, or Spring Repository integration that calls Oracle database objects. Also use oracle-naming-convention whenever any Oracle object is created, renamed, or reviewed.
+description: Oracle-centric database business logic for this project. Use this skill whenever creating or modifying Oracle DDL, PL/SQL packages, stored procedures, functions, table functions, result-code conventions, exception handling, transaction ownership, or Spring Repository integration that calls Oracle database objects. Also use oracle-naming-convention whenever any Oracle object is created, renamed, or reviewed.
 ---
 
 # Oracle Database Business Logic
@@ -36,7 +36,9 @@ app_order.PG_ORDER.SP_CREATE_ORDER
 security.PG_SECURITY.FN_CHECK_PERMISSION
 ```
 
-Use stored procedures for commands, multi-step workflows, output parameters, and transaction-controlled operations. Use views or table functions for reusable query logic. Use scalar functions carefully in large queries because row-by-row SQL-to-PL/SQL context switching can hurt performance.
+Use stored procedures for commands, multi-step workflows, output parameters, transaction-controlled operations, and reusable read workflows that return result sets through `SYS_REFCURSOR`.
+
+Do not create or use Oracle views in this project. Keep reusable read logic behind stored procedures with explicit result codes and cursor outputs, so the Java Repository layer uses one consistent Oracle integration style. Use table functions only when callers truly need composable SQL row sources; do not use them as a view substitute for ordinary API reads. Use scalar functions carefully in large queries because row-by-row SQL-to-PL/SQL context switching can hurt performance.
 
 When creating or modifying any Oracle object, follow the `oracle-naming-convention` skill exactly.
 

@@ -45,7 +45,7 @@ Do not start with frontend implementation when the backend API does not yet exis
 
 Requirement analysis identifies the business goal, user role, input data, output data, business rules, validation rules, database changes, security requirements, and email or notification requirements.
 
-Oracle design defines tables or table changes, indexes, constraints, sequences or identity columns, views, package specifications, stored procedure signatures and implementations, procedure inputs and outputs, `SYS_REFCURSOR` parameters, function return values, result set structures, result codes, transaction behavior, and exception behavior.
+Oracle design defines tables or table changes, indexes, constraints, sequences or identity columns, package specifications, stored procedure signatures and implementations, procedure inputs and outputs, `SYS_REFCURSOR` parameters, function return values, result set structures, result codes, transaction behavior, and exception behavior.
 
 Backend integration implements Repository methods, `SimpleJdbcCall` configuration, Oracle parameter mapping, result-set mapping, Service orchestration, security checks, DTOs, Controller endpoints, exception mapping, logging, and tests.
 
@@ -77,6 +77,6 @@ Oracle owns business rules, calculations, validations, and data workflows.
 
 Spring Boot provides REST APIs, security, application orchestration, validation, transaction boundaries, email integration, and database integration.
 
-Repositories call Oracle package procedures through `JdbcTemplate` or `SimpleJdbcCall`, and query views or functions through `JdbcTemplate` or `NamedParameterJdbcTemplate`.
+Repositories call Oracle procedures through `SimpleJdbcCall` or `JdbcTemplate`. Read workflows that return rows should use stored procedures with explicit `SYS_REFCURSOR` outputs rather than Oracle views.
 
 Vue 3 + TypeScript implements the user interface based on the finalized backend API contract.

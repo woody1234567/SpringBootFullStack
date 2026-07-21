@@ -32,6 +32,7 @@ public final class SqlParamNames {
     public static final String RESULT_MESSAGE = "p_result_message";
 
     public static final String USER_CURSOR = "p_user_cursor";
+    public static final String CATEGORY_CURSOR = "p_category_cursor";
     public static final String EXPENSE_CURSOR = "p_expense_cursor";
     public static final String FAILED_CURSOR = "p_failed_cursor";
 

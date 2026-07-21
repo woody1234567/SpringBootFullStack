@@ -5,7 +5,7 @@
 -- they own objects but cannot log in.
 --
 -- Scripts 001-007 are then run by an admin account holding CREATE ANY TABLE,
--- CREATE ANY INDEX, CREATE ANY PROCEDURE, CREATE ANY VIEW and CREATE ANY TYPE
+-- CREATE ANY INDEX, CREATE ANY PROCEDURE and CREATE ANY TYPE
 -- (objects are created with schema-qualified names; the definer of each object
 -- is the owning schema). This mirrors how the SQL Server scripts were run as dbo.
 DECLARE

@@ -2,7 +2,7 @@
 
 Spring Boot 3 (Java 21) REST API for a personal expense/invoice tracker. It follows a
 database-centric architecture: business rules, validation, and multi-table workflows live in
-Oracle stored procedures, functions, and views; the Java layers handle HTTP, security, and
+Oracle stored procedures and functions; the Java layers handle HTTP, security, and
 orchestration only.
 
 ```text
@@ -29,7 +29,7 @@ Oracle Tables
   invoice number per user) and returns a `p_result_code`/`p_result_message` pair that the repository
   translates into typed results and, ultimately, HTTP status codes.
 - **Categories** (`/api/categories`) – Read-only list of active expense categories, backed by
-  the `app_expense.VW_ACTIVE_CATEGORY` view.
+  the `app_expense.SP_GET_ACTIVE_CATEGORY` stored procedure.
 - **CSV batch import** (`/api/imports/expenses`) – Multipart upload of a CSV file
   (`expense_date, amount, category, invoice_number, note` columns) to bulk-create expenses.
   `CsvExpenseParser` handles structural parsing only (headers, type coercion, BOM/UTF-8); all
@@ -58,7 +58,7 @@ src/main/java/com/example/expensetracker
 │   ├── request     # Validated inbound DTOs
 │   └── response    # Outbound DTOs (ApiResponse envelope, PageResponse, etc.)
 ├── exception        # Business exceptions + global exception handler
-├── repository        # JdbcTemplate/SimpleJdbcCall calls into stored procs/views
+├── repository        # JdbcTemplate/SimpleJdbcCall calls into stored procedures
 │   ├── model        # Raw repository result shapes (not exposed to clients)
 │   ├── mapper        # RowMapper implementations
 │   └── impl
@@ -85,7 +85,7 @@ Oracle schemas (users) group related objects, applied in order from `src/main/re
 | `003_types_app_expense.sql` | `TO_EXPENSE_IMPORT_ROW`/`TT_EXPENSE_IMPORT_ROW` collection types and `TB_TMP_IMPORT_FAILED_ROW` GTT for batch import |
 | `004_procs_app_user.sql` | `app_user.SP_CREATE_USER`, `SP_GET_USER_BY_EMAIL` |
 | `005_procs_app_expense_crud.sql` | `app_expense.SP_CREATE_EXPENSE`, `SP_UPDATE_EXPENSE`, `SP_DELETE_EXPENSE`, `SP_GET_EXPENSE_DETAIL`, `SP_SEARCH_EXPENSE` |
-| `006_view_active_categories.sql` | `app_expense.VW_ACTIVE_CATEGORY` view |
+| `006_proc_active_categories.sql` | `app_expense.SP_GET_ACTIVE_CATEGORY` |
 | `007_proc_import_expenses_batch.sql` | `app_expense.SP_IMPORT_EXPENSE_BATCH` — atomic CSV bulk import |
 | `008_grants_runtime_user.sql` | Grants `EXPENSE_TRACKER` the execute/select privileges needed by the backend and local database tools |
 
@@ -104,7 +104,7 @@ CREATE USER expense_tracker IDENTIFIED BY "<strong-password>";
 ```
 
 The runtime user is intentionally separate from the object-owning schemas. `APP_USER` and
-`APP_EXPENSE` own the tables/procedures/views; `EXPENSE_TRACKER` connects from Spring Boot and
+`APP_EXPENSE` own the tables/procedures/types; `EXPENSE_TRACKER` connects from Spring Boot and
 receives only the required privileges. When connected as `EXPENSE_TRACKER` in VSCode Database
 Client, use the schema-qualified names (`app_user.TB_USER`, `app_expense.TB_EXPENSE`) or expand
 the `APP_USER` / `APP_EXPENSE` schemas under the client schema browser.
@@ -139,7 +139,7 @@ single Spring AOP aspect rather than hand-written per method:
     produces a stack of paired ENTER/EXIT lines, one per layer — this is expected, not duplicated
     logging.
 - **`aspect.@LoggedOperation("app_schema.object_name")`** — annotate a Repository method with the
-  literal Oracle stored procedure/function/view it calls so the log line shows the real database
+  literal Oracle stored procedure/function it calls so the log line shows the real database
   object name (e.g. `app_user.SP_CREATE_USER`) instead of the Java method name. Used on all
   Repository impl methods; Service/Controller methods fall back to `ClassName.methodName`.
 - **`util.SensitiveDataMasker`** redacts arguments and return values before they're logged, so

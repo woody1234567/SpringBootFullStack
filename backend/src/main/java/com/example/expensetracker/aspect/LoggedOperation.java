@@ -7,7 +7,7 @@ import java.lang.annotation.Target;
 
 /**
  * Marks a Repository method with the literal Oracle object it calls
- * (stored procedure, function, or view) so {@link LoggingAspect} can log the
+ * (stored procedure or function) so {@link LoggingAspect} can log the
  * real database object name instead of the Java method name.
  */
 @Retention(RetentionPolicy.RUNTIME)
