@@ -18,8 +18,8 @@ CREATE OR REPLACE TYPE app_expense.TT_EXPENSE_IMPORT_ROW AS TABLE OF app_expense
 -- Session-scoped scratch table (global temporary table) replacing the SQL Server
 -- #failed_rows temp table: SP_IMPORT_EXPENSE_BATCH collects validation failures
 -- here and returns them through a ref cursor. ON COMMIT PRESERVE ROWS so the
--- rows survive the procedure's audit COMMIT and remain fetchable by the caller;
--- the procedure clears the table at the start of every call.
+-- rows remain fetchable while Spring consumes the ref cursor; the procedure
+-- clears the table at the start of every call.
 DECLARE
     v_count PLS_INTEGER;
 BEGIN

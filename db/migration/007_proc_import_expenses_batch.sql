@@ -1,29 +1,91 @@
--- app_expense.SP_IMPORT_EXPENSE_BATCH: atomic CSV bulk import.
+-- app_expense.SP_CREATE_IMPORT_BATCH: records the start of a CSV import batch.
 --
--- All rows are validated up front. If ANY row fails, nothing is inserted and the
--- failing rows are returned through p_failed_cursor. If every row passes, all
--- rows are inserted and committed together (database-owned transaction).
--- The TB_IMPORT_BATCH audit row is always written and committed, even for failed
--- imports, so an audit trail exists in every outcome.
---
--- Failed rows are staged in app_expense.TB_TMP_IMPORT_FAILED_ROW (session-scoped
--- global temporary table, ON COMMIT PRESERVE ROWS, created in 003) so they
--- survive the audit COMMIT and remain fetchable through the ref cursor; the
--- table is cleared at the start of every call.
-CREATE OR REPLACE PROCEDURE app_expense.SP_IMPORT_EXPENSE_BATCH (
+-- Transaction ownership is intentionally Spring-owned. These procedures do not
+-- COMMIT or ROLLBACK; ExpenseImportService decides which calls run in the outer
+-- transaction and which calls run in REQUIRES_NEW.
+CREATE OR REPLACE PROCEDURE app_expense.SP_CREATE_IMPORT_BATCH (
     p_user_id        IN  VARCHAR2,
     p_file_name      IN  NVARCHAR2 DEFAULT NULL,
-    p_rows           IN  app_expense.TT_EXPENSE_IMPORT_ROW,
+    p_total_rows     IN  NUMBER,
     p_batch_id       OUT VARCHAR2,
+    p_result_code    OUT VARCHAR2,
+    p_result_message OUT VARCHAR2
+)
+AS
+BEGIN
+    INSERT INTO app_expense.TB_IMPORT_BATCH (user_id, file_name, total_rows, success_rows, status, error_summary)
+    VALUES (p_user_id, p_file_name, NVL(p_total_rows, 0), 0, 'PROCESSING', NULL)
+    RETURNING batch_id INTO p_batch_id;
+
+    p_result_code := 'SUCCESS';
+    p_result_message := 'Import batch created';
+EXCEPTION
+    WHEN OTHERS THEN
+        p_result_code := 'SYSTEM_ERROR';
+        p_result_message := 'Unable to create import batch';
+        RAISE;
+END SP_CREATE_IMPORT_BATCH;
+/
+
+-- app_expense.SP_UPDATE_IMPORT_BATCH: finalizes a CSV import batch record.
+CREATE OR REPLACE PROCEDURE app_expense.SP_UPDATE_IMPORT_BATCH (
+    p_batch_id       IN  VARCHAR2,
+    p_success_count  IN  NUMBER,
+    p_status         IN  VARCHAR2,
+    p_error_summary  IN  NVARCHAR2 DEFAULT NULL,
+    p_result_code    OUT VARCHAR2,
+    p_result_message OUT VARCHAR2
+)
+AS
+BEGIN
+    IF p_status NOT IN ('SUCCESS', 'FAILED') THEN
+        p_result_code := 'VALIDATION_ERROR';
+        p_result_message := 'Import batch status must be SUCCESS or FAILED';
+        RETURN;
+    END IF;
+
+    UPDATE app_expense.TB_IMPORT_BATCH
+    SET success_rows = NVL(p_success_count, 0),
+        status = p_status,
+        error_summary = p_error_summary
+    WHERE batch_id = p_batch_id;
+
+    IF SQL%ROWCOUNT = 0 THEN
+        p_result_code := 'NOT_FOUND';
+        p_result_message := 'Import batch not found';
+        RETURN;
+    END IF;
+
+    p_result_code := 'SUCCESS';
+    p_result_message := 'Import batch updated';
+EXCEPTION
+    WHEN OTHERS THEN
+        p_result_code := 'SYSTEM_ERROR';
+        p_result_message := 'Unable to update import batch';
+        RAISE;
+END SP_UPDATE_IMPORT_BATCH;
+/
+
+-- app_expense.SP_IMPORT_EXPENSE_BATCH: validates and inserts CSV expenses.
+--
+-- All rows are validated up front. If ANY row fails, nothing is inserted and the
+-- failing rows are returned through p_failed_cursor. If every row passes, rows
+-- are inserted into TB_EXPENSE in the caller's Spring-managed transaction.
+--
+-- Failed rows are staged in app_expense.TB_TMP_IMPORT_FAILED_ROW (session-scoped
+-- global temporary table, ON COMMIT PRESERVE ROWS, created in 003) so they stay
+-- fetchable through the ref cursor until the Spring transaction ends.
+CREATE OR REPLACE PROCEDURE app_expense.SP_IMPORT_EXPENSE_BATCH (
+    p_user_id        IN  VARCHAR2,
+    p_rows           IN  app_expense.TT_EXPENSE_IMPORT_ROW,
     p_success_count  OUT NUMBER,
     p_result_code    OUT VARCHAR2,
     p_result_message OUT VARCHAR2,
     p_failed_cursor  OUT SYS_REFCURSOR
 )
 AS
-    v_total_rows    PLS_INTEGER := 0;
-    v_failed_rows   PLS_INTEGER := 0;
-    v_error_summary NVARCHAR2(2000);
+    v_total_rows  PLS_INTEGER := 0;
+    v_failed_rows PLS_INTEGER := 0;
 BEGIN
     IF p_rows IS NOT NULL THEN
         v_total_rows := p_rows.COUNT;
@@ -35,11 +97,6 @@ BEGIN
     IF v_total_rows = 0 THEN
         p_result_code := 'VALIDATION_ERROR';
         p_result_message := 'CSV file contains no data rows';
-
-        INSERT INTO app_expense.TB_IMPORT_BATCH (user_id, file_name, total_rows, success_rows, status, error_summary)
-        VALUES (p_user_id, p_file_name, 0, 0, 'FAILED', p_result_message)
-        RETURNING batch_id INTO p_batch_id;
-        COMMIT;
 
         OPEN p_failed_cursor FOR
             SELECT f.row_number, f.error_message
@@ -86,16 +143,6 @@ BEGIN
         p_result_code := 'VALIDATION_ERROR';
         p_result_message := 'One or more rows failed validation; no rows were imported';
 
-        SELECT f.error_message INTO v_error_summary
-        FROM app_expense.TB_TMP_IMPORT_FAILED_ROW f
-        ORDER BY f.row_number
-        FETCH FIRST 1 ROW ONLY;
-
-        INSERT INTO app_expense.TB_IMPORT_BATCH (user_id, file_name, total_rows, success_rows, status, error_summary)
-        VALUES (p_user_id, p_file_name, v_total_rows, 0, 'FAILED', v_error_summary)
-        RETURNING batch_id INTO p_batch_id;
-        COMMIT;
-
         OPEN p_failed_cursor FOR
             SELECT f.row_number, f.error_message
             FROM app_expense.TB_TMP_IMPORT_FAILED_ROW f
@@ -113,29 +160,15 @@ BEGIN
     p_result_code := 'SUCCESS';
     p_result_message := 'Import completed successfully';
 
-    INSERT INTO app_expense.TB_IMPORT_BATCH (user_id, file_name, total_rows, success_rows, status, error_summary)
-    VALUES (p_user_id, p_file_name, v_total_rows, p_success_count, 'SUCCESS', NULL)
-    RETURNING batch_id INTO p_batch_id;
-
-    COMMIT;
-
     OPEN p_failed_cursor FOR
         SELECT f.row_number, f.error_message
         FROM app_expense.TB_TMP_IMPORT_FAILED_ROW f
-        WHERE 1 = 0; -- empty failed-rows result set
+        WHERE 1 = 0;
 EXCEPTION
     WHEN OTHERS THEN
-        ROLLBACK;
-
         p_result_code := 'SYSTEM_ERROR';
         p_result_message := 'Unable to complete the database operation';
         p_success_count := 0;
-
-        INSERT INTO app_expense.TB_IMPORT_BATCH (user_id, file_name, total_rows, success_rows, status, error_summary)
-        VALUES (p_user_id, p_file_name, v_total_rows, 0, 'FAILED', 'System error during import')
-        RETURNING batch_id INTO p_batch_id;
-        COMMIT;
-
         RAISE;
 END SP_IMPORT_EXPENSE_BATCH;
 /

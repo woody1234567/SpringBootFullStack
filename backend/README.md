@@ -34,8 +34,8 @@ Oracle Tables
   (`expense_date, amount, category, invoice_number, note` columns) to bulk-create expenses.
   `CsvExpenseParser` handles structural parsing only (headers, type coercion, BOM/UTF-8); all
   business validation happens in `app_expense.SP_IMPORT_EXPENSE_BATCH`, which is **all-or-nothing**
-  — if any row fails, the whole batch is rolled back and the failing rows are returned with
-  reasons, while an audit row is still written to `import_batches` either way.
+  for `TB_EXPENSE`. Spring owns the transaction boundary, so failed imports roll back expense
+  writes while the `TB_IMPORT_BATCH` record is saved in an independent `REQUIRES_NEW` transaction.
 - **Standardized API responses** – Every endpoint returns the same envelope
   (`{ "success", "message", "data" }` on success; `{ "success": false, "message", "errorCode",
   "errors" }` on failure) via a `@RestControllerAdvice` global exception handler that maps
@@ -86,7 +86,7 @@ Oracle schemas (users) group related objects, applied in order from `src/main/re
 | `004_procs_app_user.sql` | `app_user.SP_CREATE_USER`, `SP_GET_USER_BY_EMAIL` |
 | `005_procs_app_expense_crud.sql` | `app_expense.SP_CREATE_EXPENSE`, `SP_UPDATE_EXPENSE`, `SP_DELETE_EXPENSE`, `SP_GET_EXPENSE_DETAIL`, `SP_SEARCH_EXPENSE` |
 | `006_proc_active_categories.sql` | `app_expense.SP_GET_ACTIVE_CATEGORY` |
-| `007_proc_import_expenses_batch.sql` | `app_expense.SP_IMPORT_EXPENSE_BATCH` — atomic CSV bulk import |
+| `007_proc_import_expenses_batch.sql` | `SP_CREATE_IMPORT_BATCH`, `SP_IMPORT_EXPENSE_BATCH`, `SP_UPDATE_IMPORT_BATCH` — Spring-managed CSV bulk import |
 | `008_grants_runtime_user.sql` | Grants `EXPENSE_TRACKER` the execute/select privileges needed by the backend and local database tools |
 | `009_recompile_search_expense.sql` | Recompiles `app_expense.SP_SEARCH_EXPENSE` with stable `ROW_NUMBER()` pagination |
 

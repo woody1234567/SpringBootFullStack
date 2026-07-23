@@ -26,7 +26,10 @@ public final class SqlParamNames {
     public static final String FILE_NAME = "p_file_name";
     public static final String ROWS = "p_rows";
     public static final String BATCH_ID = "p_batch_id";
+    public static final String TOTAL_ROWS = "p_total_rows";
     public static final String SUCCESS_COUNT = "p_success_count";
+    public static final String STATUS = "p_status";
+    public static final String ERROR_SUMMARY = "p_error_summary";
 
     public static final String RESULT_CODE = "p_result_code";
     public static final String RESULT_MESSAGE = "p_result_message";

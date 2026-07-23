@@ -4,6 +4,7 @@ import com.example.expensetracker.aspect.LoggedOperation;
 import com.example.expensetracker.constant.SqlParamNames;
 import com.example.expensetracker.repository.ExpenseImportRepository;
 import com.example.expensetracker.repository.mapper.ImportRowFailureMapper;
+import com.example.expensetracker.repository.model.ImportBatchMutationResult;
 import com.example.expensetracker.repository.model.ImportBatchResult;
 import com.example.expensetracker.repository.model.ImportRowFailure;
 import com.example.expensetracker.repository.model.ParsedExpenseImportRow;
@@ -26,9 +27,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Calls app_expense.SP_IMPORT_EXPENSE_BATCH, passing CSV rows as an Oracle
- * nested table so the database performs whole-batch validation and insert in
- * one round trip.
+ * Calls APP_EXPENSE import procedures. Spring owns the transaction boundary:
+ * batch record calls can run in REQUIRES_NEW, while expense row import runs in
+ * the caller's transaction.
  */
 @Repository
 public class ExpenseImportRepositoryImpl implements ExpenseImportRepository {
@@ -36,48 +37,107 @@ public class ExpenseImportRepositoryImpl implements ExpenseImportRepository {
     private static final String IMPORT_ROW_OBJECT_TYPE = "APP_EXPENSE.TO_EXPENSE_IMPORT_ROW";
     private static final String IMPORT_ROW_TABLE_TYPE = "APP_EXPENSE.TT_EXPENSE_IMPORT_ROW";
 
-    private final SimpleJdbcCall importBatchCall;
+    private final SimpleJdbcCall createImportBatchCall;
+    private final SimpleJdbcCall importExpenseRowsCall;
+    private final SimpleJdbcCall updateImportBatchCall;
 
     public ExpenseImportRepositoryImpl(JdbcTemplate jdbcTemplate) {
-        this.importBatchCall = new SimpleJdbcCall(jdbcTemplate)
+        this.createImportBatchCall = new SimpleJdbcCall(jdbcTemplate)
+                .withSchemaName("APP_EXPENSE")
+                .withProcedureName("SP_CREATE_IMPORT_BATCH")
+                .withoutProcedureColumnMetaDataAccess()
+                .declareParameters(
+                        new SqlParameter(SqlParamNames.USER_ID, Types.VARCHAR),
+                        new SqlParameter(SqlParamNames.FILE_NAME, Types.NVARCHAR),
+                        new SqlParameter(SqlParamNames.TOTAL_ROWS, Types.NUMERIC),
+                        new SqlOutParameter(SqlParamNames.BATCH_ID, Types.VARCHAR),
+                        new SqlOutParameter(SqlParamNames.RESULT_CODE, Types.VARCHAR),
+                        new SqlOutParameter(SqlParamNames.RESULT_MESSAGE, Types.VARCHAR)
+                );
+
+        this.importExpenseRowsCall = new SimpleJdbcCall(jdbcTemplate)
                 .withSchemaName("APP_EXPENSE")
                 .withProcedureName("SP_IMPORT_EXPENSE_BATCH")
                 .withoutProcedureColumnMetaDataAccess()
                 .declareParameters(
                         new SqlParameter(SqlParamNames.USER_ID, Types.VARCHAR),
-                        new SqlParameter(SqlParamNames.FILE_NAME, Types.NVARCHAR),
                         new SqlParameter(SqlParamNames.ROWS, Types.ARRAY, IMPORT_ROW_TABLE_TYPE),
-                        new SqlOutParameter(SqlParamNames.BATCH_ID, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.SUCCESS_COUNT, Types.NUMERIC),
                         new SqlOutParameter(SqlParamNames.RESULT_CODE, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.RESULT_MESSAGE, Types.VARCHAR),
                         new SqlOutParameter(SqlParamNames.FAILED_CURSOR, OracleTypes.CURSOR, new ImportRowFailureMapper())
                 );
+
+        this.updateImportBatchCall = new SimpleJdbcCall(jdbcTemplate)
+                .withSchemaName("APP_EXPENSE")
+                .withProcedureName("SP_UPDATE_IMPORT_BATCH")
+                .withoutProcedureColumnMetaDataAccess()
+                .declareParameters(
+                        new SqlParameter(SqlParamNames.BATCH_ID, Types.VARCHAR),
+                        new SqlParameter(SqlParamNames.SUCCESS_COUNT, Types.NUMERIC),
+                        new SqlParameter(SqlParamNames.STATUS, Types.VARCHAR),
+                        new SqlParameter(SqlParamNames.ERROR_SUMMARY, Types.NVARCHAR),
+                        new SqlOutParameter(SqlParamNames.RESULT_CODE, Types.VARCHAR),
+                        new SqlOutParameter(SqlParamNames.RESULT_MESSAGE, Types.VARCHAR)
+                );
+    }
+
+    @Override
+    @LoggedOperation("app_expense.SP_CREATE_IMPORT_BATCH")
+    public ImportBatchMutationResult createImportBatch(String userId, String fileName, int totalRows) {
+        Map<String, Object> params = new HashMap<>();
+        params.put(SqlParamNames.USER_ID, userId);
+        params.put(SqlParamNames.FILE_NAME, fileName);
+        params.put(SqlParamNames.TOTAL_ROWS, totalRows);
+
+        Map<String, Object> result = createImportBatchCall.execute(params);
+
+        return new ImportBatchMutationResult(
+                (String) result.get(SqlParamNames.BATCH_ID),
+                (String) result.get(SqlParamNames.RESULT_CODE),
+                (String) result.get(SqlParamNames.RESULT_MESSAGE));
     }
 
     @Override
     @LoggedOperation("app_expense.SP_IMPORT_EXPENSE_BATCH")
-    public ImportBatchResult importBatch(String userId, String fileName, List<ParsedExpenseImportRow> rows) {
+    public ImportBatchResult importExpenseRows(String userId, List<ParsedExpenseImportRow> rows) {
         Map<String, Object> params = new HashMap<>();
         params.put(SqlParamNames.USER_ID, userId);
-        params.put(SqlParamNames.FILE_NAME, fileName);
         params.put(SqlParamNames.ROWS, toOracleRows(rows));
 
-        Map<String, Object> result = importBatchCall.execute(params);
+        Map<String, Object> result = importExpenseRowsCall.execute(params);
 
         String resultCode = (String) result.get(SqlParamNames.RESULT_CODE);
-        String batchId = (String) result.get(SqlParamNames.BATCH_ID);
         Number successCount = (Number) result.get(SqlParamNames.SUCCESS_COUNT);
 
         @SuppressWarnings("unchecked")
         List<ImportRowFailure> failedRows = (List<ImportRowFailure>) result.get(SqlParamNames.FAILED_CURSOR);
 
         return new ImportBatchResult(
-                batchId,
+                null,
                 successCount == null ? 0 : successCount.intValue(),
                 resultCode,
                 (String) result.get(SqlParamNames.RESULT_MESSAGE),
                 failedRows == null ? List.of() : failedRows);
+    }
+
+    @Override
+    @LoggedOperation("app_expense.SP_UPDATE_IMPORT_BATCH")
+    public ImportBatchMutationResult updateImportBatch(
+            String batchId, int successCount, String status, String errorSummary
+    ) {
+        Map<String, Object> params = new HashMap<>();
+        params.put(SqlParamNames.BATCH_ID, batchId);
+        params.put(SqlParamNames.SUCCESS_COUNT, successCount);
+        params.put(SqlParamNames.STATUS, status);
+        params.put(SqlParamNames.ERROR_SUMMARY, errorSummary);
+
+        Map<String, Object> result = updateImportBatchCall.execute(params);
+
+        return new ImportBatchMutationResult(
+                batchId,
+                (String) result.get(SqlParamNames.RESULT_CODE),
+                (String) result.get(SqlParamNames.RESULT_MESSAGE));
     }
 
     private SqlTypeValue toOracleRows(List<ParsedExpenseImportRow> rows) {
