@@ -118,7 +118,7 @@ BEGIN
         p_expense_date,
         p_amount,
         NULLIF(TRIM(p_invoice_number), ''),
-        NULLIF(TRIM(p_note), '')
+        TRIM(p_note)
     );
 EXCEPTION
     WHEN DUP_VAL_ON_INDEX THEN
