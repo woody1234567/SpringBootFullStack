@@ -1,8 +1,5 @@
--- app_expense.SP_CREATE_IMPORT_BATCH: records the start of a CSV import batch.
---
--- Transaction ownership is intentionally Spring-owned. These procedures do not
--- COMMIT or ROLLBACK; ExpenseImportService decides which calls run in the outer
--- transaction and which calls run in REQUIRES_NEW.
+-- CSV import procedures. Spring owns transaction boundaries: these procedures
+-- do not COMMIT or ROLLBACK.
 CREATE OR REPLACE PROCEDURE app_expense.SP_CREATE_IMPORT_BATCH (
     p_user_id        IN  VARCHAR2,
     p_file_name      IN  NVARCHAR2 DEFAULT NULL,
@@ -27,7 +24,6 @@ EXCEPTION
 END SP_CREATE_IMPORT_BATCH;
 /
 
--- app_expense.SP_UPDATE_IMPORT_BATCH: finalizes a CSV import batch record.
 CREATE OR REPLACE PROCEDURE app_expense.SP_UPDATE_IMPORT_BATCH (
     p_batch_id       IN  VARCHAR2,
     p_success_count  IN  NUMBER,
@@ -66,109 +62,66 @@ EXCEPTION
 END SP_UPDATE_IMPORT_BATCH;
 /
 
--- app_expense.SP_IMPORT_EXPENSE_BATCH: validates and inserts CSV expenses.
---
--- All rows are validated up front. If ANY row fails, nothing is inserted and the
--- failing rows are returned through p_failed_cursor. If every row passes, rows
--- are inserted into TB_EXPENSE in the caller's Spring-managed transaction.
---
--- Failed rows are staged in app_expense.TB_TMP_IMPORT_FAILED_ROW (session-scoped
--- global temporary table, ON COMMIT PRESERVE ROWS, created in 003) so they stay
--- fetchable through the ref cursor until the Spring transaction ends.
-CREATE OR REPLACE PROCEDURE app_expense.SP_IMPORT_EXPENSE_BATCH (
-    p_user_id        IN  VARCHAR2,
-    p_rows           IN  app_expense.TT_EXPENSE_IMPORT_ROW,
-    p_success_count  OUT NUMBER,
-    p_result_code    OUT VARCHAR2,
-    p_result_message OUT VARCHAR2,
-    p_failed_cursor  OUT SYS_REFCURSOR
+CREATE OR REPLACE PROCEDURE app_expense.SP_CREATE_IMPORT_FAILED_ROW (
+    p_batch_id       IN  VARCHAR2,
+    p_row_number     IN  NUMBER,
+    p_error_message  IN  VARCHAR2
 )
 AS
-    v_total_rows  PLS_INTEGER := 0;
-    v_failed_rows PLS_INTEGER := 0;
 BEGIN
-    IF p_rows IS NOT NULL THEN
-        v_total_rows := p_rows.COUNT;
-    END IF;
-    p_success_count := 0;
+    INSERT INTO app_expense.TB_IMPORT_FAILED_ROW (batch_id, row_number, error_message)
+    VALUES (p_batch_id, NVL(p_row_number, 0), SUBSTR(p_error_message, 1, 4000));
+END SP_CREATE_IMPORT_FAILED_ROW;
+/
 
-    DELETE FROM app_expense.TB_TMP_IMPORT_FAILED_ROW;
-
-    IF v_total_rows = 0 THEN
-        p_result_code := 'VALIDATION_ERROR';
-        p_result_message := 'CSV file contains no data rows';
-
-        OPEN p_failed_cursor FOR
-            SELECT f.row_number, f.error_message
-            FROM app_expense.TB_TMP_IMPORT_FAILED_ROW f
-            WHERE 1 = 0;
-        RETURN;
-    END IF;
-
-    -- Collect every failing row in one pass (first applicable reason per row).
-    INSERT INTO app_expense.TB_TMP_IMPORT_FAILED_ROW (row_number, error_message)
-    SELECT x.row_number, x.error_message
-    FROM (
-        SELECT
-            r.row_number,
-            CASE
-                WHEN r.expense_date IS NULL
-                    THEN 'Row ' || TO_CHAR(r.row_number) || ': invalid or missing expense_date'
-                WHEN r.amount IS NULL OR r.amount <= 0
-                    THEN 'Row ' || TO_CHAR(r.row_number) || ': amount must be greater than 0'
-                WHEN r.category_name IS NULL OR NOT EXISTS (
-                    SELECT 1 FROM app_expense.TB_CATEGORY c
-                    WHERE c.is_active = 1 AND UPPER(c.name) = UPPER(r.category_name)
-                )
-                    THEN 'Row ' || TO_CHAR(r.row_number) || ': category not found'
-                WHEN r.invoice_number IS NOT NULL AND EXISTS (
-                    SELECT 1 FROM TABLE(p_rows) r2
-                    WHERE r2.invoice_number = r.invoice_number AND r2.row_number <> r.row_number
-                )
-                    THEN 'Row ' || TO_CHAR(r.row_number) || ': duplicate invoice_number within file'
-                WHEN r.invoice_number IS NOT NULL AND EXISTS (
-                    SELECT 1 FROM app_expense.TB_EXPENSE e
-                    WHERE e.user_id = p_user_id AND e.invoice_number = r.invoice_number
-                )
-                    THEN 'Row ' || TO_CHAR(r.row_number) || ': invoice_number already recorded'
-                ELSE NULL
-            END AS error_message
-        FROM TABLE(p_rows) r
-    ) x
-    WHERE x.error_message IS NOT NULL;
-
-    v_failed_rows := SQL%ROWCOUNT;
-
-    IF v_failed_rows > 0 THEN
-        p_result_code := 'VALIDATION_ERROR';
-        p_result_message := 'One or more rows failed validation; no rows were imported';
-
-        OPEN p_failed_cursor FOR
-            SELECT f.row_number, f.error_message
-            FROM app_expense.TB_TMP_IMPORT_FAILED_ROW f
-            ORDER BY f.row_number;
-        RETURN;
+CREATE OR REPLACE PROCEDURE app_expense.SP_INSERT_IMPORTED_EXPENSE (
+    p_user_id         IN VARCHAR2,
+    p_batch_id        IN VARCHAR2,
+    p_row_number      IN NUMBER,
+    p_expense_date    IN DATE,
+    p_amount          IN NUMBER,
+    p_category_name   IN NVARCHAR2,
+    p_invoice_number  IN VARCHAR2 DEFAULT NULL,
+    p_note            IN NVARCHAR2 DEFAULT NULL
+)
+AS
+    v_category_id app_expense.TB_CATEGORY.category_id%TYPE;
+BEGIN
+    IF p_expense_date IS NULL THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Row ' || p_row_number || ': expense_date is required');
     END IF;
 
-    INSERT INTO app_expense.TB_EXPENSE (user_id, category_id, expense_date, amount, invoice_number, note)
-    SELECT p_user_id, c.category_id, r.expense_date, r.amount, r.invoice_number, r.note
-    FROM TABLE(p_rows) r
-    JOIN app_expense.TB_CATEGORY c ON UPPER(c.name) = UPPER(r.category_name) AND c.is_active = 1;
+    IF p_amount IS NULL OR p_amount <= 0 THEN
+        RAISE_APPLICATION_ERROR(-20002, 'Row ' || p_row_number || ': amount must be greater than 0');
+    END IF;
 
-    p_success_count := SQL%ROWCOUNT;
+    BEGIN
+        SELECT c.category_id
+        INTO v_category_id
+        FROM app_expense.TB_CATEGORY c
+        WHERE c.is_active = 1
+          AND UPPER(c.name) = UPPER(p_category_name);
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RAISE_APPLICATION_ERROR(-20003, 'Row ' || p_row_number || ': category not found');
+        WHEN TOO_MANY_ROWS THEN
+            RAISE_APPLICATION_ERROR(-20004, 'Row ' || p_row_number || ': category is ambiguous');
+    END;
 
-    p_result_code := 'SUCCESS';
-    p_result_message := 'Import completed successfully';
-
-    OPEN p_failed_cursor FOR
-        SELECT f.row_number, f.error_message
-        FROM app_expense.TB_TMP_IMPORT_FAILED_ROW f
-        WHERE 1 = 0;
+    INSERT INTO app_expense.TB_EXPENSE (
+        user_id, batch_id, category_id, expense_date, amount, invoice_number, note
+    )
+    VALUES (
+        p_user_id,
+        p_batch_id,
+        v_category_id,
+        p_expense_date,
+        p_amount,
+        NULLIF(TRIM(p_invoice_number), ''),
+        NULLIF(TRIM(p_note), '')
+    );
 EXCEPTION
-    WHEN OTHERS THEN
-        p_result_code := 'SYSTEM_ERROR';
-        p_result_message := 'Unable to complete the database operation';
-        p_success_count := 0;
-        RAISE;
-END SP_IMPORT_EXPENSE_BATCH;
+    WHEN DUP_VAL_ON_INDEX THEN
+        RAISE_APPLICATION_ERROR(-20005, 'Row ' || p_row_number || ': invoice_number already recorded');
+END SP_INSERT_IMPORTED_EXPENSE;
 /

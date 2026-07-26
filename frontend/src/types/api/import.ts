@@ -1,6 +1,7 @@
 export interface ImportRowError {
   rowNumber: number
   message: string
+  fieldErrors: Record<string, string[]>
 }
 
 export interface ImportResultData {

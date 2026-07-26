@@ -3,11 +3,14 @@ package com.example.expensetracker.service;
 import com.example.expensetracker.constant.ResultCode;
 import com.example.expensetracker.repository.ExpenseImportRepository;
 import com.example.expensetracker.repository.model.ImportBatchMutationResult;
+import com.example.expensetracker.repository.model.ImportRowFailure;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Slf4j
 @Service
@@ -28,6 +31,11 @@ public class ImportBatchTransactionService {
         ImportBatchMutationResult result =
                 expenseImportRepository.updateImportBatch(batchId, successCount, status, errorSummary);
         assertSuccess(result, "app_expense.SP_UPDATE_IMPORT_BATCH");
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void createImportFailedRows(String batchId, List<ImportRowFailure> failedRows) {
+        expenseImportRepository.createImportFailedRows(batchId, failedRows);
     }
 
     private void assertSuccess(ImportBatchMutationResult result, String operationName) {

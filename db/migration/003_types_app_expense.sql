@@ -1,7 +1,6 @@
--- Collection type used by app_expense.SP_IMPORT_EXPENSE_BATCH for atomic CSV bulk
--- import (Oracle equivalent of the SQL Server table-valued parameter): a
--- schema-level object type plus a nested table of it, passed as an IN parameter
--- and queried with TABLE(...).
+-- Legacy collection type kept for compatibility with databases that already
+-- applied the earlier array-based CSV import procedure. The current Java import
+-- path uses JdbcTemplate.batchUpdate with app_expense.SP_INSERT_IMPORTED_EXPENSE.
 CREATE OR REPLACE TYPE app_expense.TO_EXPENSE_IMPORT_ROW FORCE AS OBJECT (
     row_number      NUMBER(10),
     expense_date    DATE,
@@ -15,11 +14,8 @@ CREATE OR REPLACE TYPE app_expense.TO_EXPENSE_IMPORT_ROW FORCE AS OBJECT (
 CREATE OR REPLACE TYPE app_expense.TT_EXPENSE_IMPORT_ROW AS TABLE OF app_expense.TO_EXPENSE_IMPORT_ROW;
 /
 
--- Session-scoped scratch table (global temporary table) replacing the SQL Server
--- #failed_rows temp table: SP_IMPORT_EXPENSE_BATCH collects validation failures
--- here and returns them through a ref cursor. ON COMMIT PRESERVE ROWS so the
--- rows remain fetchable while Spring consumes the ref cursor; the procedure
--- clears the table at the start of every call.
+-- Legacy session-scoped scratch table kept for compatibility with earlier
+-- import procedures. New failed rows are persisted in TB_IMPORT_FAILED_ROW.
 DECLARE
     v_count PLS_INTEGER;
 BEGIN

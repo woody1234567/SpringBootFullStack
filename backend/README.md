@@ -32,10 +32,11 @@ Oracle Tables
   the `app_expense.SP_GET_ACTIVE_CATEGORY` stored procedure.
 - **CSV batch import** (`/api/imports/expenses`) – Multipart upload of a CSV file
   (`expense_date, amount, category, invoice_number, note` columns) to bulk-create expenses.
-  `CsvExpenseParser` handles structural parsing only (headers, type coercion, BOM/UTF-8); all
-  business validation happens in `app_expense.SP_IMPORT_EXPENSE_BATCH`, which is **all-or-nothing**
-  for `TB_EXPENSE`. Spring owns the transaction boundary, so failed imports roll back expense
-  writes while the `TB_IMPORT_BATCH` record is saved in an independent `REQUIRES_NEW` transaction.
+  `CsvExpenseParser` uses Jackson CSV plus Jakarta Validation to return row-level field errors
+  before database writes. Valid rows are inserted through `JdbcTemplate.batchUpdate` calls to
+  `app_expense.SP_INSERT_IMPORTED_EXPENSE`, which is **all-or-nothing** for `TB_EXPENSE`. Spring
+  owns the transaction boundary, so failed imports roll back expense writes while `TB_IMPORT_BATCH`
+  and `TB_IMPORT_FAILED_ROW` records are saved in independent `REQUIRES_NEW` transactions.
 - **Standardized API responses** – Every endpoint returns the same envelope
   (`{ "success", "message", "data" }` on success; `{ "success": false, "message", "errorCode",
   "errors" }` on failure) via a `@RestControllerAdvice` global exception handler that maps
@@ -69,24 +70,25 @@ src/main/java/com/example/expensetracker
 src/main/resources
 ├── application.yml           # Local config (gitignored — copy from the example below)
 ├── application-example.yml   # Template; copy to application.yml and fill in real values
-├── log4j2.xml
-└── db/migration/             # Numbered Oracle DDL/stored-procedure scripts (see below)
+└── log4j2.xml
+
+db/migration/                 # Numbered Oracle DDL/stored-procedure scripts (see below)
 ```
 
 ## Database Objects
 
-Oracle schemas (users) group related objects, applied in order from `src/main/resources/db/migration/`:
+Oracle schemas (users) group related objects, applied in order from repo-root `db/migration/`:
 
 | File | Purpose |
 | --- | --- |
 | `000_setup_schemas.sql` | Creates the `app_user` and `app_expense` schema-only accounts (run as DBA) |
 | `001_schema_app_user.sql` | `app_user.TB_USER` table, including the `role` column and role check constraint |
-| `002_schema_app_expense.sql` | `TB_CATEGORY`, `TB_EXPENSE`, `TB_IMPORT_BATCH` tables (incl. function-based unique index so multiple no-invoice expenses are allowed per user) |
+| `002_schema_app_expense.sql` | `TB_CATEGORY`, `TB_EXPENSE`, `TB_IMPORT_BATCH`, `TB_IMPORT_FAILED_ROW` tables (incl. function-based unique index so multiple no-invoice expenses are allowed per user) |
 | `003_types_app_expense.sql` | `TO_EXPENSE_IMPORT_ROW`/`TT_EXPENSE_IMPORT_ROW` collection types and `TB_TMP_IMPORT_FAILED_ROW` GTT for batch import |
 | `004_procs_app_user.sql` | `app_user.SP_CREATE_USER`, `SP_GET_USER_BY_EMAIL` |
 | `005_procs_app_expense_crud.sql` | `app_expense.SP_CREATE_EXPENSE`, `SP_UPDATE_EXPENSE`, `SP_DELETE_EXPENSE`, `SP_GET_EXPENSE_DETAIL`, `SP_SEARCH_EXPENSE` |
 | `006_proc_active_categories.sql` | `app_expense.SP_GET_ACTIVE_CATEGORY` |
-| `007_proc_import_expenses_batch.sql` | `SP_CREATE_IMPORT_BATCH`, `SP_IMPORT_EXPENSE_BATCH`, `SP_UPDATE_IMPORT_BATCH` — Spring-managed CSV bulk import |
+| `007_proc_import_expenses_batch.sql` | `SP_CREATE_IMPORT_BATCH`, `SP_UPDATE_IMPORT_BATCH`, `SP_CREATE_IMPORT_FAILED_ROW`, `SP_INSERT_IMPORTED_EXPENSE` — Spring-managed CSV bulk import |
 | `008_grants_runtime_user.sql` | Grants `EXPENSE_TRACKER` the execute/select privileges needed by the backend and local database tools |
 | `009_recompile_search_expense.sql` | Recompiles `app_expense.SP_SEARCH_EXPENSE` with stable `ROW_NUMBER()` pagination |
 
@@ -143,8 +145,8 @@ global exception handler maps to HTTP status codes.
 
 ## Updating Tables
 
-Database table changes are managed through the numbered SQL scripts in
-`src/main/resources/db/migration/`. Because this project does not wire in Flyway or Liquibase,
+Database table changes are managed through the numbered SQL scripts in repo-root
+`db/migration/`. Because this project does not wire in Flyway or Liquibase,
 apply each script manually with SQL*Plus, SQLcl, VSCode Database Client, or another Oracle client.
 
 For a clean local database that can be rebuilt, update the existing schema scripts and re-apply the
@@ -309,7 +311,7 @@ imports are required.
 ## Deployment Steps
 
 1. **Provision Oracle Database** and create/apply the target schemas.
-2. **Apply the migration scripts** in `src/main/resources/db/migration/`, in numeric order
+2. **Apply the migration scripts** in repo-root `db/migration/`, in numeric order
    (000 → 009), against that database. Create `EXPENSE_TRACKER` before running `008`; see
    [Updating Tables](#updating-tables) before changing an already-applied schema.
 3. **Configure the application**: copy `application-example.yml` to `application.yml` (or set the

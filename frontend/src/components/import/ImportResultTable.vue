@@ -6,6 +6,8 @@ interface Props {
 }
 
 defineProps<Props>()
+
+const hasFieldErrors = (fieldErrors: Record<string, string[]>) => Object.keys(fieldErrors ?? {}).length > 0
 </script>
 
 <template>
@@ -27,8 +29,16 @@ defineProps<Props>()
       </thead>
       <tbody>
         <tr v-for="failure in result.failedRows" :key="failure.rowNumber">
-          <td>{{ failure.rowNumber }}</td>
-          <td>{{ failure.message }}</td>
+          <td>{{ failure.rowNumber === 0 ? '-' : failure.rowNumber }}</td>
+          <td>
+            <div>{{ failure.message }}</div>
+            <dl v-if="hasFieldErrors(failure.fieldErrors)" class="import-result__field-errors">
+              <template v-for="(messages, field) in failure.fieldErrors" :key="field">
+                <dt>{{ field }}</dt>
+                <dd>{{ messages.join('；') }}</dd>
+              </template>
+            </dl>
+          </td>
         </tr>
       </tbody>
     </table>
@@ -51,5 +61,23 @@ defineProps<Props>()
   padding: 8px 12px;
   border-bottom: 1px solid #e8eaec;
   text-align: left;
+  vertical-align: top;
+}
+
+.import-result__field-errors {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 8px;
+  margin: 6px 0 0;
+  color: #515a6e;
+  font-size: 13px;
+}
+
+.import-result__field-errors dt {
+  font-weight: 600;
+}
+
+.import-result__field-errors dd {
+  margin: 0;
 }
 </style>
