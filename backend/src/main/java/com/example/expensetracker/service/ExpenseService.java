@@ -91,6 +91,6 @@ public class ExpenseService {
     private ExpenseResponse toResponse(ExpenseRow row) {
         return new ExpenseResponse(
                 row.expenseId(), row.expenseDate(), row.amount(), row.categoryId(), row.categoryName(),
-                row.invoiceNumber(), row.note(), row.createdAt(), row.updatedAt());
+                row.invoiceNumber(), row.note(), row.createTime(), row.updateTime());
     }
 }

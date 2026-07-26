@@ -1,6 +1,7 @@
 -- Tables for user accounts (the app_user schema itself is created in 000_setup_schemas.sql).
 DECLARE
-    v_count            PLS_INTEGER;
+    v_count             PLS_INTEGER;
+    v_old_column_count  PLS_INTEGER;
     v_role_column_count PLS_INTEGER;
     v_role_check_count  PLS_INTEGER;
 BEGIN
@@ -17,14 +18,82 @@ BEGIN
                 display_name    NVARCHAR2(100),
                 role            VARCHAR2(20 CHAR) DEFAULT ''user'' NOT NULL,
                 is_active       NUMBER(1) DEFAULT 1 NOT NULL,
-                created_at      TIMESTAMP(3) DEFAULT SYS_EXTRACT_UTC(SYSTIMESTAMP) NOT NULL,
-                updated_at      TIMESTAMP(3) DEFAULT SYS_EXTRACT_UTC(SYSTIMESTAMP) NOT NULL,
+                create_time     TIMESTAMP(3) DEFAULT SYS_EXTRACT_UTC(SYSTIMESTAMP) NOT NULL,
+                update_time     TIMESTAMP(3) DEFAULT SYS_EXTRACT_UTC(SYSTIMESTAMP) NOT NULL,
+                creator         VARCHAR2(32 CHAR),
+                updater         VARCHAR2(32 CHAR),
                 CONSTRAINT PK_USER PRIMARY KEY (user_id),
                 CONSTRAINT UK_USER UNIQUE (email),
                 CONSTRAINT CK_USER CHECK (is_active IN (0, 1)),
                 CONSTRAINT CK_USER_ROLE CHECK (role IN (''admin'', ''user''))
             )';
     ELSE
+        SELECT COUNT(*) INTO v_count
+        FROM all_tab_columns
+        WHERE owner = 'APP_USER' AND table_name = 'TB_USER' AND column_name = 'CREATE_TIME';
+
+        IF v_count = 0 THEN
+            SELECT COUNT(*) INTO v_old_column_count
+            FROM all_tab_columns
+            WHERE owner = 'APP_USER' AND table_name = 'TB_USER' AND column_name = 'CREATED_AT';
+
+            IF v_old_column_count > 0 THEN
+                EXECUTE IMMEDIATE '
+                    ALTER TABLE app_user.TB_USER
+                    RENAME COLUMN created_at TO create_time
+                ';
+            ELSE
+                EXECUTE IMMEDIATE '
+                    ALTER TABLE app_user.TB_USER
+                    ADD (create_time TIMESTAMP(3) DEFAULT SYS_EXTRACT_UTC(SYSTIMESTAMP) NOT NULL)
+                ';
+            END IF;
+        END IF;
+
+        SELECT COUNT(*) INTO v_count
+        FROM all_tab_columns
+        WHERE owner = 'APP_USER' AND table_name = 'TB_USER' AND column_name = 'UPDATE_TIME';
+
+        IF v_count = 0 THEN
+            SELECT COUNT(*) INTO v_old_column_count
+            FROM all_tab_columns
+            WHERE owner = 'APP_USER' AND table_name = 'TB_USER' AND column_name = 'UPDATED_AT';
+
+            IF v_old_column_count > 0 THEN
+                EXECUTE IMMEDIATE '
+                    ALTER TABLE app_user.TB_USER
+                    RENAME COLUMN updated_at TO update_time
+                ';
+            ELSE
+                EXECUTE IMMEDIATE '
+                    ALTER TABLE app_user.TB_USER
+                    ADD (update_time TIMESTAMP(3) DEFAULT SYS_EXTRACT_UTC(SYSTIMESTAMP) NOT NULL)
+                ';
+            END IF;
+        END IF;
+
+        SELECT COUNT(*) INTO v_count
+        FROM all_tab_columns
+        WHERE owner = 'APP_USER' AND table_name = 'TB_USER' AND column_name = 'CREATOR';
+
+        IF v_count = 0 THEN
+            EXECUTE IMMEDIATE '
+                ALTER TABLE app_user.TB_USER
+                ADD (creator VARCHAR2(32 CHAR))
+            ';
+        END IF;
+
+        SELECT COUNT(*) INTO v_count
+        FROM all_tab_columns
+        WHERE owner = 'APP_USER' AND table_name = 'TB_USER' AND column_name = 'UPDATER';
+
+        IF v_count = 0 THEN
+            EXECUTE IMMEDIATE '
+                ALTER TABLE app_user.TB_USER
+                ADD (updater VARCHAR2(32 CHAR))
+            ';
+        END IF;
+
         SELECT COUNT(*) INTO v_role_column_count
         FROM all_tab_columns
         WHERE owner = 'APP_USER' AND table_name = 'TB_USER' AND column_name = 'ROLE';

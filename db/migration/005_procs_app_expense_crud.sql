@@ -47,8 +47,12 @@ BEGIN
         END IF;
     END IF;
 
-    INSERT INTO app_expense.TB_EXPENSE (user_id, category_id, expense_date, amount, invoice_number, note)
-    VALUES (p_user_id, p_category_id, p_expense_date, p_amount, p_invoice_number, p_note)
+    INSERT INTO app_expense.TB_EXPENSE (
+        user_id, category_id, expense_date, amount, invoice_number, note, creator, updater
+    )
+    VALUES (
+        p_user_id, p_category_id, p_expense_date, p_amount, p_invoice_number, p_note, p_user_id, p_user_id
+    )
     RETURNING expense_id INTO p_expense_id;
 
     p_result_code := 'SUCCESS';
@@ -122,7 +126,8 @@ BEGIN
         category_id    = p_category_id,
         invoice_number = p_invoice_number,
         note           = p_note,
-        updated_at     = SYS_EXTRACT_UTC(SYSTIMESTAMP)
+        update_time    = SYS_EXTRACT_UTC(SYSTIMESTAMP),
+        updater        = p_user_id
     WHERE expense_id = p_expense_id AND user_id = p_user_id;
 
     p_result_code := 'SUCCESS';
@@ -188,7 +193,7 @@ BEGIN
         p_result_message := 'Expense not found';
         OPEN p_expense_cursor FOR
             SELECT e.expense_id, e.expense_date, e.amount, e.category_id, c.name AS category_name,
-                   e.invoice_number, e.note, e.created_at, e.updated_at
+                   e.invoice_number, e.note, e.create_time, e.update_time
             FROM app_expense.TB_EXPENSE e
             JOIN app_expense.TB_CATEGORY c ON c.category_id = e.category_id
             WHERE 1 = 0;
@@ -197,7 +202,7 @@ BEGIN
 
     OPEN p_expense_cursor FOR
         SELECT e.expense_id, e.expense_date, e.amount, e.category_id, c.name AS category_name,
-               e.invoice_number, e.note, e.created_at, e.updated_at
+               e.invoice_number, e.note, e.create_time, e.update_time
         FROM app_expense.TB_EXPENSE e
         JOIN app_expense.TB_CATEGORY c ON c.category_id = e.category_id
         WHERE e.expense_id = p_expense_id AND e.user_id = p_user_id;
@@ -244,7 +249,7 @@ BEGIN
 
     OPEN p_expense_cursor FOR
         SELECT e.expense_id, e.expense_date, e.amount, e.category_id, c.name AS category_name,
-               e.invoice_number, e.note, e.created_at, e.updated_at
+               e.invoice_number, e.note, e.create_time, e.update_time
         FROM app_expense.TB_EXPENSE e
         JOIN app_expense.TB_CATEGORY c ON c.category_id = e.category_id
         WHERE e.user_id = p_user_id

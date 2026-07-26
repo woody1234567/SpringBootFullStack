@@ -12,7 +12,7 @@ public record ExpenseRow(
         String categoryName,
         String invoiceNumber,
         String note,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime createTime,
+        LocalDateTime updateTime
 ) {
 }

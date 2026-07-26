@@ -18,8 +18,8 @@ public class ExpenseRowMapper implements RowMapper<ExpenseRow> {
                 rs.getString("category_name"),
                 rs.getString("invoice_number"),
                 rs.getString("note"),
-                rs.getTimestamp("created_at").toLocalDateTime(),
-                rs.getTimestamp("updated_at").toLocalDateTime()
+                rs.getTimestamp("create_time").toLocalDateTime(),
+                rs.getTimestamp("update_time").toLocalDateTime()
         );
     }
 }

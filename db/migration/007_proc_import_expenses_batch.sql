@@ -10,8 +10,12 @@ CREATE OR REPLACE PROCEDURE app_expense.SP_CREATE_IMPORT_BATCH (
 )
 AS
 BEGIN
-    INSERT INTO app_expense.TB_IMPORT_BATCH (user_id, file_name, total_rows, success_rows, status, error_summary)
-    VALUES (p_user_id, p_file_name, NVL(p_total_rows, 0), 0, 'PROCESSING', NULL)
+    INSERT INTO app_expense.TB_IMPORT_BATCH (
+        user_id, file_name, total_rows, success_rows, status, error_summary, creator, updater
+    )
+    VALUES (
+        p_user_id, p_file_name, NVL(p_total_rows, 0), 0, 'PROCESSING', NULL, p_user_id, p_user_id
+    )
     RETURNING batch_id INTO p_batch_id;
 
     p_result_code := 'SUCCESS';
@@ -43,7 +47,9 @@ BEGIN
     UPDATE app_expense.TB_IMPORT_BATCH
     SET success_rows = NVL(p_success_count, 0),
         status = p_status,
-        error_summary = p_error_summary
+        error_summary = p_error_summary,
+        update_time = SYS_EXTRACT_UTC(SYSTIMESTAMP),
+        updater = user_id
     WHERE batch_id = p_batch_id;
 
     IF SQL%ROWCOUNT = 0 THEN
@@ -68,9 +74,15 @@ CREATE OR REPLACE PROCEDURE app_expense.SP_CREATE_IMPORT_FAILED_ROW (
     p_error_message  IN  VARCHAR2
 )
 AS
+    v_user_id app_expense.TB_IMPORT_BATCH.user_id%TYPE;
 BEGIN
-    INSERT INTO app_expense.TB_IMPORT_FAILED_ROW (batch_id, row_number, error_message)
-    VALUES (p_batch_id, NVL(p_row_number, 0), SUBSTR(p_error_message, 1, 4000));
+    SELECT user_id
+    INTO v_user_id
+    FROM app_expense.TB_IMPORT_BATCH
+    WHERE batch_id = p_batch_id;
+
+    INSERT INTO app_expense.TB_IMPORT_FAILED_ROW (batch_id, row_number, error_message, creator, updater)
+    VALUES (p_batch_id, NVL(p_row_number, 0), SUBSTR(p_error_message, 1, 4000), v_user_id, v_user_id);
 END SP_CREATE_IMPORT_FAILED_ROW;
 /
 
@@ -109,7 +121,7 @@ BEGIN
     END;
 
     INSERT INTO app_expense.TB_EXPENSE (
-        user_id, batch_id, category_id, expense_date, amount, invoice_number, note
+        user_id, batch_id, category_id, expense_date, amount, invoice_number, note, creator, updater
     )
     VALUES (
         p_user_id,
@@ -118,7 +130,9 @@ BEGIN
         p_expense_date,
         p_amount,
         NULLIF(TRIM(p_invoice_number), ''),
-        TRIM(p_note)
+        TRIM(p_note),
+        p_user_id,
+        p_user_id
     );
 EXCEPTION
     WHEN DUP_VAL_ON_INDEX THEN

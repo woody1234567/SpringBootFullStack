@@ -9,6 +9,7 @@ CREATE OR REPLACE PROCEDURE app_user.SP_CREATE_USER (
 )
 AS
     v_count PLS_INTEGER;
+    v_user_id app_user.TB_USER.user_id%TYPE;
 BEGIN
     -- In Oracle the empty string is NULL, so IS NULL also rejects '' inputs.
     IF p_email IS NULL OR TRIM(p_email) IS NULL OR p_password_hash IS NULL THEN
@@ -27,9 +28,12 @@ BEGIN
         RETURN;
     END IF;
 
-    INSERT INTO app_user.TB_USER (email, password_hash, display_name)
-    VALUES (p_email, p_password_hash, p_display_name)
-    RETURNING user_id INTO p_user_id;
+    v_user_id := RAWTOHEX(SYS_GUID());
+
+    INSERT INTO app_user.TB_USER (user_id, email, password_hash, display_name, creator, updater)
+    VALUES (v_user_id, p_email, p_password_hash, p_display_name, v_user_id, v_user_id);
+
+    p_user_id := v_user_id;
 
     p_result_code := 'SUCCESS';
     p_result_message := 'User created successfully';

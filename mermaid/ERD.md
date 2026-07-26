@@ -30,9 +30,9 @@ erDiagram
 
     TB_batches {
 
-        created_time date
+        create_time date
 
-        updated_time date
+        update_time date
 
         creator varchar2(32)
 
@@ -56,9 +56,9 @@ erDiagram
 
     TB_expenses {
 
-        created_time date
+        create_time date
 
-        updated_time date
+        update_time date
 
         creator varchar2(32)
 
@@ -88,9 +88,9 @@ erDiagram
 
     TB_categories {
 
-        created_time date
+        create_time date
 
-        updated_time date
+        update_time date
 
         creator varchar2(32)
 
@@ -108,9 +108,9 @@ erDiagram
 
     TB_import_failed_row {
 
-        created_time date
+        create_time date
 
-        updated_time date
+        update_time date
 
         creator varchar2(32)
 
@@ -130,9 +130,9 @@ erDiagram
 
     TB_group{
 
-        created_time date
+        create_time date
 
-        updated_time date
+        update_time date
 
         creator varchar2(32)
 

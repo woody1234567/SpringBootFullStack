@@ -12,7 +12,7 @@ public record ExpenseResponse(
         String categoryName,
         String invoiceNumber,
         String note,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime createTime,
+        LocalDateTime updateTime
 ) {
 }
