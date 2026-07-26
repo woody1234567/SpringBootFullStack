@@ -6,6 +6,6 @@ export interface Expense {
   categoryName: string
   invoiceNumber: string | null
   note: string | null
-  createdAt: string
-  updatedAt: string
+  createTime: string
+  updateTime: string
 }
