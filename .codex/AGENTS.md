@@ -52,7 +52,10 @@ Use the project skills for detailed rules instead of keeping every rule in this 
 
 - `oracle-database-business-logic`: Use for Oracle DDL, PL/SQL, packages, stored procedures, functions, table functions, Oracle result conventions, exception handling, transaction ownership, and database-centric business logic.
 - `oracle-naming-convention`: Use whenever creating, modifying, renaming, or reviewing any Oracle database object. This includes tables, indexes, constraints, procedures, functions, packages, sequences, triggers, jobs, materialized views, object types, and table types.
-- `spring-oracle-backend`: Use for Spring Boot Controllers, Services, Repositories, DTOs, `JdbcTemplate`, `NamedParameterJdbcTemplate`, `SimpleJdbcCall`, API response formats, dependency injection, logging, and exception handling.
+- `spring-oracle-backend`: Use for shared Spring Boot backend conventions, package structure, DTO rules, API response formats, dependency injection, logging, and exception handling across backend layers.
+- `spring-oracle-controller`: Use for REST Controllers, route mappings, request binding, validation entry points, authenticated principal usage at the HTTP boundary, and controller response behavior.
+- `spring-oracle-service`: Use for Services, application workflows, Spring-owned `@Transactional` boundaries, authorization checks, Oracle result-code interpretation, exception mapping, and response DTO conversion.
+- `spring-oracle-repository`: Use for Repositories, `JdbcTemplate`, `NamedParameterJdbcTemplate`, `SimpleJdbcCall`, Oracle package/procedure/function calls, `SYS_REFCURSOR` mapping, Oracle type binding, and repository models.
 - `spring-security-auth`: Use for authentication, authorization, JWT/JWE/session decisions, Spring Security configuration, role handling, route protection, account status, and token safety.
 - `vue-typescript-frontend`: Use for Vue 3, TypeScript, frontend API clients, HTTP client configuration, Pinia, Vue Router, View UI Plus, forms, component design, frontend permission checks, and loading/empty/error states.
 - `fullstack-feature-workflow`: Use when implementing a new feature or workflow that may span Oracle, Spring Boot, API contracts, and Vue.
