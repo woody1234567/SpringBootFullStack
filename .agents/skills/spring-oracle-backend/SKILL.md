@@ -10,20 +10,57 @@ description: Spring Boot backend conventions for this Oracle-centric project. Us
 Keep backend responsibilities separated:
 
 ```text
-Controller → Service → Repository → Oracle Package / Procedure / Function / View
+Controller → Service → Repository → Oracle Package / Procedure / Function
 ```
 
-Controllers receive HTTP requests, map parameters, validate request DTOs, call Services, return standardized API responses, and map HTTP status codes.
+### Controller Development
 
-Controllers must not contain SQL, `JdbcTemplate`, `SimpleJdbcCall`, business calculations, Oracle-specific parameter handling, complex permission logic, or transactional database workflows.
+Controllers are the HTTP boundary. They receive requests, bind path/query/body parameters, validate request DTOs, call one Service method per use case, and return standardized API responses.
 
-Services are thin application orchestration layers. They coordinate Repository calls, manage application-level transactions, apply Spring Security authorization, retrieve authenticated user information, convert Repository results into response DTOs, call mail or external services, translate database errors, and manage API-level workflows.
+Controllers should:
 
-Services should not duplicate Oracle business logic. Use `@Transactional` only when multiple Repository calls need a Java-managed transaction or when the application layer owns the transaction boundary.
+- Use `@RestController`, clear route prefixes, and explicit HTTP method mappings.
+- Accept request DTO classes from `dto/request` and return response DTO classes from `dto/response`.
+- Use `@Valid` for request body validation and simple Spring annotations for path/query parameters.
+- Retrieve authenticated principal information only when it is needed to call the Service.
+- Keep HTTP status behavior consistent with the API response format and exception handling policy.
+- Delegate business decisions, authorization rules, Oracle result-code interpretation, and workflow orchestration to Services.
 
-Repositories are responsible for database communication. They may call Oracle procedures/functions, execute SQL queries, map result sets, register Oracle parameters including `SYS_REFCURSOR`, convert database results into repository result objects, and translate low-level database exceptions when appropriate.
+Controllers must not contain SQL, `JdbcTemplate`, `SimpleJdbcCall`, Oracle parameter names, result-set mapping, transaction annotations, business calculations, complex permission logic, or database workflow branching.
 
-Repositories must not contain business logic. Method names should reflect database operations clearly, such as `createUser`, `verifyEmail`, `resetPassword`, `getUserDetail`, or `checkEmailExists`. Avoid generic names like `execute`, `run`, `call`, or `process` except for internal reusable helpers.
+### Service Development
+
+Services are thin application orchestration layers. They coordinate Repository calls, manage Spring-owned transactions, apply Spring Security authorization, retrieve authenticated user information when needed, convert Repository results into response DTOs, translate database results into application exceptions, and manage API-level workflows.
+
+Services should:
+
+- Use constructor injection and keep dependencies explicit.
+- Own all transaction boundaries with declarative `@Transactional`.
+- Use `@Transactional(readOnly = true)` for read-only workflows when useful.
+- Use regular `@Transactional` for write workflows and multi-step database operations.
+- Choose propagation deliberately, such as `REQUIRED` for the main workflow and `REQUIRES_NEW` only for intentionally independent Spring-managed records.
+- Call Repository methods using domain-oriented Java values and DTO/model classes, not Oracle parameter maps.
+- Map Oracle result codes from Repository models into application exceptions or response DTOs.
+- Convert repository model classes into API response DTOs before returning to Controllers.
+
+Services should not duplicate Oracle business logic already implemented in procedures or functions. They should not build SQL, register Oracle parameters, parse `SYS_REFCURSOR`, expose raw Oracle result codes to Controllers, or use `TransactionTemplate` unless explicitly requested. Oracle stored procedures must not issue `COMMIT` or `ROLLBACK`; all commit and rollback behavior is controlled by Spring.
+
+### Repository Development
+
+Repositories are the Oracle integration boundary. They call Oracle procedures/functions, execute SQL queries when appropriate, register Oracle parameters including `SYS_REFCURSOR`, bind SQL object/table types, map result sets, convert database outputs into repository result model classes, and translate low-level database exceptions when appropriate.
+
+Repositories should:
+
+- Provide an interface plus an implementation under `repository/impl` when matching the existing style.
+- Use `SimpleJdbcCall` for stored procedures and packaged procedures when it fits the project pattern.
+- Use `JdbcTemplate` or `NamedParameterJdbcTemplate` for focused SQL calls, scalar function calls, and simple lookups.
+- Declare Oracle parameters explicitly when metadata lookup is unreliable or costly.
+- Keep parameter names aligned with PL/SQL names, including `I_...` input parameters and `O_...` output parameters.
+- Use named constants for reused Oracle parameter names and result keys.
+- Map `SYS_REFCURSOR` rows through dedicated row mappers under `repository/mapper`.
+- Return typed repository model classes from `repository/model`, not raw JDBC or Oracle driver objects.
+
+Repositories must not contain business rules, HTTP status mapping, Spring Security authorization, Service workflow orchestration, or transaction ownership decisions. Method names should reflect database operations clearly, such as `createExpense`, `updateExpense`, `getExpenseDetail`, `searchExpenses`, or `categoryExists`. Avoid generic names like `execute`, `run`, `call`, or `process` except for internal reusable helpers.
 
 ## Package Structure
 
@@ -40,7 +77,6 @@ repository/mapper
 repository/impl
 security
 service
-mail
 aspect
 constant
 util
@@ -59,7 +95,13 @@ dto/response/UserResponse.java
 
 Do not expose Oracle parameter maps, raw JDBC result-set structures, database row objects, password hashes, unintended security tokens, or internal database result codes unless they are part of the documented API.
 
-Use Jakarta Validation annotations for request DTOs. Use Lombok correctly; the annotation is `@Data`, not `@Date`. Prefer more specific Lombok annotations over `@Data` for security-sensitive or immutable classes.
+Create DTOs as Java classes and use Lombok for boilerplate. Use Jakarta Validation annotations for request DTOs. Use Lombok correctly; the annotation is `@Data`, not `@Date`. Prefer more specific Lombok annotations over `@Data` for security-sensitive or immutable classes.
+
+## Repository Model Rules
+
+Create repository result models as Java classes under `repository/model` and use Lombok for getters, constructors, and builders when useful.
+
+Do not pass raw `Map<String, Object>`, `SqlParameterSource`, JDBC `ResultSet`, Oracle `STRUCT`, Oracle `ARRAY`, or cursor objects across the Repository boundary. Repositories should convert database outputs into typed repository model classes before returning to Services.
 
 ## Dependency Injection
 
@@ -82,7 +124,7 @@ Use Lombok `@Slf4j` and Log4j2.
 
 Log useful operation starts, important business identifiers, Oracle package/procedure/function names, result codes, execution failures, unexpected exceptions, and security-sensitive events.
 
-Do not log plaintext passwords, password hashes, complete JWT tokens, session IDs, email verification tokens, password reset tokens, confidential personal information, or sensitive database connection information.
+Do not log plaintext passwords, password hashes, complete JWT tokens, session IDs, one-time tokens, confidential personal information, or sensitive database connection information.
 
 ## Exception Handling
 

@@ -13,34 +13,65 @@ The Java backend should not duplicate business rules already implemented in Orac
 
 ## Oracle Organization
 
-Use schemas as module boundaries, such as `app_user`, `app_order`, or `security`.
-
 Prefer packages over loose standalone procedures:
 
 ```text
-Schema: app_user
-└── Package: PG_USER
-    ├── Procedure: SP_CREATE_USER
-    ├── Procedure: SP_UPDATE_USER
-    ├── Procedure: SP_VERIFY_EMAIL
-    ├── Procedure: SP_RESET_PASSWORD
-    ├── Procedure: SP_GET_USER_DETAIL
-    └── Function:  FN_EMAIL_EXISTS
+Package: PG_USER
+├── Procedure: SP_CREATE_USER
+├── Procedure: SP_UPDATE_USER
+├── Procedure: SP_GET_USER_DETAIL
+├── Procedure: SP_ASSIGN_USER_ROLE
+└── Function:  FN_USER_EXISTS
 ```
 
-Prefer schema-qualified object names:
+Prefer stored procedures over functions for application workflows. Use stored procedures for commands, multi-step workflows, output parameters, transaction-controlled operations, batch writes, result-code conventions, and reusable read workflows that return result sets through `SYS_REFCURSOR`.
 
-```sql
-app_user.PG_USER.SP_CREATE_USER
-app_order.PG_ORDER.SP_CREATE_ORDER
-security.PG_SECURITY.FN_CHECK_PERMISSION
-```
-
-Use stored procedures for commands, multi-step workflows, output parameters, transaction-controlled operations, and reusable read workflows that return result sets through `SYS_REFCURSOR`.
+Use functions only when the database object naturally behaves like a function: scalar existence checks, reusable calculations, deterministic value derivation, or a true table function needed as a composable SQL row source. Do not use functions to carry command workflows, writes, business result codes, or multi-output API contracts.
 
 Do not create or use Oracle views in this project. Keep reusable read logic behind stored procedures with explicit result codes and cursor outputs, so the Java Repository layer uses one consistent Oracle integration style. Use table functions only when callers truly need composable SQL row sources; do not use them as a view substitute for ordinary API reads. Use scalar functions carefully in large queries because row-by-row SQL-to-PL/SQL context switching can hurt performance.
 
 When creating or modifying any Oracle object, follow the `oracle-naming-convention` skill exactly.
+
+## Batch Table Types
+
+For batch write workflows, prefer SQL-level object types and nested table types to carry structured input and output rows between Spring and Oracle. Do not encode row lists as comma-delimited strings, ad hoc JSON, or parallel scalar arrays unless a specific integration constraint requires it.
+
+Create one object type for a row and one table type for a collection of those rows:
+
+```sql
+CREATE TYPE TO_EXPENSE_IMPORT_ROW AS OBJECT (
+    EXPENSE_DATE VARCHAR2(10 CHAR),
+    CATEGORY_ID VARCHAR2(32 CHAR),
+    AMOUNT NUMBER,
+    NOTE NVARCHAR2(2000)
+);
+
+CREATE TYPE TT_EXPENSE_IMPORT_ROW AS TABLE OF TO_EXPENSE_IMPORT_ROW;
+
+CREATE TYPE TO_EXPENSE_IMPORT_RESULT_ROW AS OBJECT (
+    ROW_NUMBER NUMBER,
+    RESULT_CODE VARCHAR2(50 CHAR),
+    RESULT_MESSAGE VARCHAR2(4000 CHAR)
+);
+
+CREATE TYPE TT_EXPENSE_IMPORT_RESULT_ROW AS TABLE OF TO_EXPENSE_IMPORT_RESULT_ROW;
+```
+
+Use table type parameters when the procedure accepts or returns row-shaped batch data:
+
+```sql
+PROCEDURE SP_IMPORT_EXPENSE_BATCH (
+    I_USER_ID IN VARCHAR2,
+    I_ROWS IN TT_EXPENSE_IMPORT_ROW,
+    O_FAILED_ROWS OUT TT_EXPENSE_IMPORT_RESULT_ROW,
+    O_RESULT_CODE OUT VARCHAR2,
+    O_RESULT_MESSAGE OUT VARCHAR2
+);
+```
+
+Use `I_...` for input table parameters and `O_...` for output table parameters. Keep type attributes aligned with the table columns or API row contract, and update the Oracle type, PL/SQL procedure signature, Java `SimpleJdbcCall` declaration, row binding code, DTOs, and API documentation together when the row shape changes.
+
+Use SQL object types created with `CREATE TYPE`, not PL/SQL-only package record types, when Spring JDBC must bind or read the collection. Spring JDBC should bind these table parameters with Oracle ARRAY support and declare them with the exact database type name.
 
 ## Spring JDBC Integration
 
@@ -64,21 +95,21 @@ SimpleJdbcCall call = new SimpleJdbcCall(jdbcTemplate)
         .withProcedureName("SP_CREATE_USER")
         .withoutProcedureColumnMetaDataAccess()
         .declareParameters(
-                new SqlParameter("p_email", Types.VARCHAR),
-                new SqlParameter("p_password_hash", Types.VARCHAR),
-                new SqlOutParameter("p_user_id", Types.NUMERIC),
-                new SqlOutParameter("p_result_code", Types.VARCHAR),
-                new SqlOutParameter("p_result_message", Types.VARCHAR)
+                new SqlParameter("I_USERNAME", Types.VARCHAR),
+                new SqlParameter("I_DISPLAY_NAME", Types.NVARCHAR),
+                new SqlOutParameter("O_USER_ID", Types.NUMERIC),
+                new SqlOutParameter("O_RESULT_CODE", Types.VARCHAR),
+                new SqlOutParameter("O_RESULT_MESSAGE", Types.VARCHAR)
         );
 ```
 
-PL/SQL parameter names have no `@` prefix. This project uses the `p_` prefix for procedure and function parameters. Spring JDBC map keys must match declared PL/SQL parameter names exactly.
+PL/SQL parameter names have no `@` prefix. This project uses `I_...` for input parameters and `O_...` for output parameters. Spring JDBC map keys must match declared PL/SQL parameter names exactly.
 
 Use named constants for reused parameter names:
 
 ```java
-private static final String P_EMAIL = "p_email";
-private static final String P_RESULT_CODE = "p_result_code";
+private static final String I_USERNAME = "I_USERNAME";
+private static final String O_RESULT_CODE = "O_RESULT_CODE";
 ```
 
 Do not scatter raw Oracle parameter names across multiple classes.
@@ -94,8 +125,8 @@ SimpleJdbcCall getUserCall = new SimpleJdbcCall(jdbcTemplate)
         .withProcedureName("SP_GET_USER_DETAIL")
         .withoutProcedureColumnMetaDataAccess()
         .declareParameters(
-                new SqlParameter("p_user_id", Types.NUMERIC),
-                new SqlOutParameter("p_users", OracleTypes.CURSOR, new UserRowMapper())
+                new SqlParameter("I_USER_ID", Types.NUMERIC),
+                new SqlOutParameter("O_USERS", OracleTypes.CURSOR, new UserRowMapper())
         );
 ```
 
@@ -105,9 +136,9 @@ Call scalar functions with `JdbcTemplate` or `NamedParameterJdbcTemplate` using 
 
 ```java
 Boolean exists = jdbcTemplate.queryForObject(
-        "SELECT app_user.PG_USER.FN_EMAIL_EXISTS(?) FROM dual",
+        "SELECT PG_USER.FN_USER_EXISTS(?) FROM dual",
         Boolean.class,
-        email
+        username
 );
 ```
 
@@ -117,8 +148,8 @@ Call table functions with `SELECT * FROM TABLE(...)`:
 
 ```java
 List<UserRow> users = namedParameterJdbcTemplate.query(
-        "SELECT * FROM TABLE(app_user.PG_USER.FN_SEARCH_USERS(:p_keyword))",
-        Map.of("p_keyword", keyword),
+        "SELECT * FROM TABLE(PG_USER.FN_SEARCH_USERS(:I_KEYWORD))",
+        Map.of("I_KEYWORD", keyword),
         userRowMapper
 );
 ```
@@ -128,14 +159,14 @@ List<UserRow> users = namedParameterJdbcTemplate.query(
 Stored procedures should return predictable result information:
 
 ```text
-p_result_code       OUT VARCHAR2(50)
-p_result_message    OUT VARCHAR2(4000)
+O_RESULT_CODE       OUT VARCHAR2(50)
+O_RESULT_MESSAGE    OUT VARCHAR2(4000)
 ```
 
 For object creation operations, also return:
 
 ```text
-p_created_id        OUT NUMBER
+O_CREATED_ID        OUT NUMBER
 ```
 
 Recommended semantic result codes:
@@ -174,12 +205,10 @@ Do not expose sensitive database details, schema names, SQL statements, stack tr
 
 ## Transaction Ownership
 
-Business transactions need a clear owner.
+Business transactions are always Spring-owned in this project.
 
-Use database-owned transactions when one stored procedure performs the full workflow and intentionally owns commit or rollback. In that mode, the procedure may `COMMIT` after the workflow succeeds and `ROLLBACK` in unexpected failure handling.
+Use Spring `@Transactional` boundaries in the Service layer to control commit and rollback behavior. Oracle stored procedures must not issue `COMMIT` or `ROLLBACK`; let the JDBC connection and Spring transaction manager control the transaction.
 
-Use Spring-owned transactions when one Service method coordinates multiple Repository operations, or when transaction ownership belongs to the application layer. In this mode, called stored procedures must not issue `COMMIT` or `ROLLBACK`; let the JDBC connection and Spring transaction manager control the outer transaction.
+Do not use database-owned transactions for application workflows. Stored procedures should report success or failure through output parameters and exceptions, then let the Repository or Service layer decide how the outer Spring transaction is completed.
 
-Oracle has no nested transactions. A procedure that may run inside an existing transaction must not blindly roll back work it does not own. When nested-safe behavior is needed, use a `SAVEPOINT`, roll back to that savepoint on failure, and document the strategy.
-
-Use `PRAGMA AUTONOMOUS_TRANSACTION` sparingly, only for genuinely independent writes such as audit logging that must survive rollback of the main transaction. Autonomous blocks must issue their own `COMMIT` or `ROLLBACK` and must be documented.
+Avoid `PRAGMA AUTONOMOUS_TRANSACTION` in application business logic because it creates independent database transaction control that bypasses the Spring-owned transaction boundary.

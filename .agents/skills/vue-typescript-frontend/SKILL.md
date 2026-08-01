@@ -71,9 +71,9 @@ src/api/userApi.ts
 
 The API layer owns endpoint definitions, request and response typing, query parameter serialization, HTTP client invocation, and basic response normalization. It should not contain UI state, navigation, modal behavior, toast presentation logic, or complex business logic.
 
-Create a shared HTTP client for base URL, authorization headers, timeout, credentials, JWT attachment, standard error conversion, unauthorized handling, and correlation IDs when required.
+Create a shared HTTP client for base URL, authorization headers, timeout, credentials, JWT/JWE attachment, standard error conversion, unauthorized handling, and correlation IDs when required.
 
-For Session authentication, use `withCredentials: true` when required. For JWT authentication, attach the token according to the project's security design. Do not implement token storage before confirming the backend authentication strategy.
+For Session authentication, use `withCredentials: true` when required. For JWT or JWE authentication, attach the token according to the project's security design. Do not implement token storage before confirming the backend authentication strategy.
 
 ## Type Organization
 

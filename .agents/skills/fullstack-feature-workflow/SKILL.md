@@ -43,7 +43,7 @@ Do not start with frontend implementation when the backend API does not yet exis
 
 ## Feature Phases
 
-Requirement analysis identifies the business goal, user role, input data, output data, business rules, validation rules, database changes, security requirements, and email or notification requirements.
+Requirement analysis identifies the business goal, user role, input data, output data, business rules, validation rules, database changes, and security requirements.
 
 Oracle design defines tables or table changes, indexes, constraints, sequences or identity columns, package specifications, stored procedure signatures and implementations, procedure inputs and outputs, `SYS_REFCURSOR` parameters, function return values, result set structures, result codes, transaction behavior, and exception behavior.
 
@@ -75,7 +75,7 @@ Keep the amount of detail proportional to the task. For direct implementation wo
 
 Oracle owns business rules, calculations, validations, and data workflows.
 
-Spring Boot provides REST APIs, security, application orchestration, validation, transaction boundaries, email integration, and database integration.
+Spring Boot provides REST APIs, security, application orchestration, validation, transaction boundaries, and database integration.
 
 Repositories call Oracle procedures through `SimpleJdbcCall` or `JdbcTemplate`. Read workflows that return rows should use stored procedures with explicit `SYS_REFCURSOR` outputs rather than Oracle views.
 

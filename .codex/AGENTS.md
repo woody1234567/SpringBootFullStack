@@ -17,12 +17,12 @@ Service Layer
         ↓
 Repository Layer
         ↓
-Oracle Schema / Package / Procedure / Function / View
+Oracle Schema / Package / Procedure / Function
         ↓
 Oracle Tables
 ```
 
-Business rules should primarily live in Oracle Database. Spring Boot provides REST APIs, security, application orchestration, validation, transaction boundaries, email integration, and database integration. Vue 3 + TypeScript implements the UI based on the finalized backend API contract.
+Business rules should primarily live in Oracle Database. Spring Boot provides REST APIs, security, application orchestration, validation, transaction boundaries, and database integration. Vue 3 + TypeScript implements the UI based on the finalized backend API contract.
 
 ## Development Order
 
@@ -30,7 +30,7 @@ For full-stack work, follow this order:
 
 1. Analyze the business requirement.
 2. Design or modify Oracle database objects.
-3. Implement business logic in PL/SQL packages, stored procedures, functions, views, or triggers when justified.
+3. Implement business logic in PL/SQL packages, stored procedures, and functions when justified.
 4. Implement Spring Boot Repository integration.
 5. Implement Spring Boot Service and REST API.
 6. Test and confirm the backend API contract.
@@ -43,17 +43,17 @@ The backend API must be completed and stabilized before implementing the fronten
 ## Technology Stack
 
 - Frontend: Vue 3, TypeScript, View UI Plus, Pinia, Vue Router, Axios or the existing HTTP client, Vite if already used.
-- Backend: Java, Spring Boot, Spring Web, Spring Security, Spring JDBC, Spring Validation, Spring AOP, Spring Mail, Jakarta APIs, Lombok, Log4j2, Oracle JDBC Driver.
-- Database: Oracle Database, PL/SQL, schemas, packages, procedures, functions, tables, views, constraints, indexes, sequences or identity columns, object and collection types when necessary.
+- Backend: Java, Spring Boot, Spring Web, Spring Security, Spring JDBC, Spring Validation, Spring AOP, Jakarta APIs, Lombok, Log4j2, Oracle JDBC Driver.
+- Database: Oracle Database, PL/SQL, schemas, packages, procedures, functions, tables, constraints, indexes, sequences or identity columns, object and collection types when necessary.
 
 ## Project Skills
 
 Use the project skills for detailed rules instead of keeping every rule in this always-on file:
 
-- `oracle-database-business-logic`: Use for Oracle DDL, PL/SQL, packages, stored procedures, functions, views, table functions, Oracle result conventions, exception handling, transaction ownership, and database-centric business logic.
-- `oracle-naming-convention`: Use whenever creating, modifying, renaming, or reviewing any Oracle database object. This includes tables, views, indexes, constraints, procedures, functions, packages, sequences, triggers, jobs, materialized views, object types, and table types.
+- `oracle-database-business-logic`: Use for Oracle DDL, PL/SQL, packages, stored procedures, functions, table functions, Oracle result conventions, exception handling, transaction ownership, and database-centric business logic.
+- `oracle-naming-convention`: Use whenever creating, modifying, renaming, or reviewing any Oracle database object. This includes tables, indexes, constraints, procedures, functions, packages, sequences, triggers, jobs, materialized views, object types, and table types.
 - `spring-oracle-backend`: Use for Spring Boot Controllers, Services, Repositories, DTOs, `JdbcTemplate`, `NamedParameterJdbcTemplate`, `SimpleJdbcCall`, API response formats, dependency injection, logging, and exception handling.
-- `spring-security-auth-email`: Use for authentication, authorization, JWT/session decisions, Spring Security configuration, role handling, email verification, password reset, and token safety.
+- `spring-security-auth`: Use for authentication, authorization, JWT/JWE/session decisions, Spring Security configuration, role handling, route protection, account status, and token safety.
 - `vue-typescript-frontend`: Use for Vue 3, TypeScript, frontend API clients, HTTP client configuration, Pinia, Vue Router, View UI Plus, forms, component design, frontend permission checks, and loading/empty/error states.
 - `fullstack-feature-workflow`: Use when implementing a new feature or workflow that may span Oracle, Spring Boot, API contracts, and Vue.
 - `project-testing-requirements`: Use when adding, modifying, planning, or reporting tests and verification.
